@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status CD OQUENDO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  var firebaseConfig = {
+    apiKey: "AIzaSyArFa7ewqOVI0XVn24xGk2hPW6lqjNRKBw",
+    authDomain: "control-de-unidades-oquendo.firebaseapp.com",
+    databaseURL: "https://control-de-unidades-oquendo-default-rtdb.firebaseio.com",
+    projectId: "control-de-unidades-oquendo",
+    storageBucket: "control-de-unidades-oquendo.firebasestorage.app",
+    messagingSenderId: "273503136413",
+    appId: "1:273503136413:web:4592559bc2fa5958e7c274"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var dbRef = firebase.database().ref('unidades');
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #F4F3EF;
+    color: #1A1A18;
+    padding-bottom: 1.5rem;
+    font-size: 13px;
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid #E5E3DB;
+    padding: 10px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  header .date { font-size: 11.5px; color: #6B6A63; margin-top: 1px; }
+  .live-indicator { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #27500A; margin-top: 3px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #639922; display: inline-block; }
+  .container { padding: 10px 12px; max-width: 560px; margin: 0 auto; }
+  .actions { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+  button {
+    font-family: inherit;
+    font-size: 12px;
+    border-radius: 8px;
+    border: 1px solid #D8D6CC;
+    background: #fff;
+    padding: 7px 6px;
+    cursor: pointer;
+  }
+  button:active { transform: scale(0.98); }
+  .btn-primary { background: #1A1A18; color: #fff; border-color: #1A1A18; }
+  .btn-export { background: #27500A; color: #fff; border-color: #27500A; }
+  .btn-danger { background: #fff; color: #A32D2D; border-color: #F0997B; }
+  .actions button { flex: 1; min-width: 80px; display: flex; align-items: center; justify-content: center; gap: 3px; white-space: nowrap; }
+  .actions-row2 { display: flex; gap: 6px; margin-bottom: 10px; }
+  .actions-row2 button { flex: 1; }
+
+  .section-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; color: #8A8880; margin: 10px 0 5px; font-weight: 600; }
+  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .metrics-row.metrics-estatus { grid-template-columns: repeat(3, 1fr); }
+  .metric { background: #EDEBE3; border-radius: 8px; padding: 7px 4px; text-align: center; }
+  .metric .label { font-size: 9.5px; color: #6B6A63; margin: 0 0 2px; white-space: nowrap; }
+  .metric .value { font-size: 16px; font-weight: 600; margin: 0; }
+  .metric.m-pendiente { background: #EDEBE3; }
+  .metric.m-porcargar { background: #FAEEDA; }
+  .metric.m-descargando { background: #EAF3DE; }
+  .metric.m-atendido { background: #E1F5EE; }
+  .metric.m-despachado { background: #E6F1FB; }
+  .metric.m-recepcion { background: #E6F1FB; }
+  .metric.m-despacho { background: #EAF3DE; }
+  .metric.m-traslado { background: #FAEEDA; }
+  .metric.m-recedesp { background: #EEEDFE; }
+
+  .filters { display: flex; gap: 6px; margin: 10px 0; }
+  select, input, textarea {
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 7px;
+    border: 1px solid #D8D6CC;
+    background: #fff;
+    padding: 6px 8px;
+    width: 100%;
+  }
+  .filters select { flex: 1; font-size: 12px; padding: 5px 6px; }
+  .hint-order { font-size: 11px; color: #8A8880; margin: 0 0 8px; }
+  table.unit-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #E5E3DB; }
+  table.unit-table th {
+    background: #EDEBE3; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;
+    color: #6B6A63; padding: 5px 4px; text-align: left; font-weight: 600;
+  }
+  table.unit-table td { padding: 4px 4px; border-top: 1px solid #EFEDE6; vertical-align: middle; }
+  table.unit-table tr:first-child td { border-top: none; }
+  table.unit-table tr:nth-child(even) { background: #FAFAF8; }
+  .placa { font-weight: 600; font-size: 12.5px; letter-spacing: 0.3px; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; display: inline-block; white-space: nowrap; }
+  .b-recepcion { background: #E6F1FB; color: #0C447C; }
+  .b-despacho { background: #EAF3DE; color: #27500A; }
+  .b-traslado { background: #FAEEDA; color: #633806; }
+  .b-recedesp { background: #EEEDFE; color: #3C3489; }
+  select.estatus-select { font-size: 11px; padding: 3px 2px; border-radius: 6px; }
+  .s-descargando { background: #EAF3DE; color: #27500A; border-color: #C0DD97; }
+  .s-porcargar { background: #FAEEDA; color: #633806; border-color: #FAC775; }
+  .s-pendiente { background: #EDEBE3; color: #6B6A63; border-color: #D8D6CC; }
+  .s-atendido { background: #E1F5EE; color: #04342C; border-color: #9FE1CB; }
+  .s-despachado { background: #E6F1FB; color: #0C447C; border-color: #85B7EB; }
+  input.hora-input { font-size: 11px; padding: 3px 2px; width: 54px; border-radius: 6px; }
+  .del-btn { border: none; background: none; padding: 1px; font-size: 13px; color: #B0AEA5; cursor: pointer; }
+  .next-btn { border: none; background: none; padding: 1px 2px; font-size: 13px; color: #27500A; cursor: pointer; flex-shrink: 0; }
+  .order-btns { display: flex; flex-direction: column; gap: 1px; }
+  .order-btns button { border: none; background: none; padding: 0; font-size: 11px; color: #8A8880; line-height: 1; cursor: pointer; }
+  .order-btns button:disabled { color: #DEDCD3; cursor: default; }
+  .empty { text-align: center; padding: 2rem 0; color: #8A8880; font-size: 13px; }
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center; padding: 16px; z-index: 100;
+  }
+  .modal { background: #fff; border-radius: 14px; padding: 16px; width: 100%; max-width: 320px; }
+  .modal h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+  .modal label { font-size: 12px; color: #6B6A63; display: block; margin-bottom: 3px; }
+  .modal .field { margin-bottom: 10px; }
+  .modal .field.error input, .modal .field.error select { border-color: #E24B4A; }
+  .field-error-msg { font-size: 11px; color: #A32D2D; margin: 2px 0 0; display: none; }
+  .modal .field.error .field-error-msg { display: block; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 4px; }
+  .modal-actions button { flex: 1; }
+  .hint { font-size: 11px; color: #8A8880; margin: 0 0 8px; }
+  textarea { font-family: ui-monospace, monospace; font-size: 12px; resize: vertical; }
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #501313; color: #FCEBEB; font-size: 12.5px; padding: 9px 14px;
+    border-radius: 8px; z-index: 200; display: none; max-width: 90%; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Status CD OQUENDO</h1>
+  <div class="date" id="headerDate"></div>
+  <div class="live-indicator"><span class="live-dot"></span>Sincronizado en vivo</div>
+</header>
+
+<div class="container">
+  <div class="actions">
+    <button class="btn-primary" id="btnAdd">+ Unidad</button>
+    <button id="btnBulk">Cargar lista</button>
+    <button class="btn-export" id="btnExport">Exportar Excel</button>
+  </div>
+  <div class="actions-row2">
+    <button id="btnSortHora">Ordenar por hora</button>
+    <button class="btn-danger" id="btnClearAll">Borrar todo</button>
+  </div>
+
+  <p class="section-label">Por estatus</p>
+  <div class="metrics-row metrics-estatus" id="metricsEstatus"></div>
+
+  <p class="section-label">Por tipo</p>
+  <div class="metrics-row" id="metricsTipo"></div>
+
+  <div class="filters">
+    <select id="filterTipo">
+      <option value="">Todos los tipos</option>
+      <option value="Recepcion">Recepcion</option>
+      <option value="Despacho">Despacho</option>
+      <option value="Traslado">Traslado</option>
+      <option value="Rece/Desp">Rece/Desp</option>
+    </select>
+    <select id="filterEstatus">
+      <option value="">Todos los estatus</option>
+      <option value="Descargando">Descargando</option>
+      <option value="Por cargar">Por cargar</option>
+      <option value="Pendiente">Pendiente</option>
+      <option value="Atendido">Atendido</option>
+      <option value="Despachado">Despachado</option>
+    </select>
+  </div>
+
+  <p class="hint-order">Orden sugerido: Pendiente &#8594; Por cargar / Descargando &#8594; Atendido &#8594; Despachado. Usa el boton &#10148; para avanzar rapido, o el selector para corregir manualmente.</p>
+
+  <table class="unit-table" id="unitTable">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Placa</th>
+        <th>Tipo</th>
+        <th>Hora</th>
+        <th>Estatus</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+  <div class="empty" id="emptyState" style="display:none;">No hay unidades registradas todavia.</div>
+</div>
+
+<div class="overlay" id="modalOverlay">
+  <div class="modal" id="modalAdd" style="display:none;">
+    <h2>Nueva unidad</h2>
+    <div class="field" id="fieldPlaca">
+      <label>Placa</label>
+      <input id="inputPlaca" type="text" placeholder="Ej. ABC-123" style="text-transform:uppercase;">
+      <p class="field-error-msg">Falta la placa</p>
+    </div>
+    <div class="field">
+      <label>Tipo</label>
+      <select id="inputTipo">
+        <option value="Recepcion">Recepcion</option>
+        <option value="Despacho">Despacho</option>
+        <option value="Traslado">Traslado</option>
+        <option value="Rece/Desp">Rece/Desp</option>
+      </select>
+    </div>
+    <div class="field" id="fieldHora">
+      <label>Hora de llegada</label>
+      <input id="inputHora" type="time">
+      <p class="field-error-msg">Falta la hora de llegada</p>
+    </div>
+    <div class="field">
+      <label>Estatus</label>
+      <select id="inputEstatus">
+        <option value="Pendiente">Pendiente</option>
+        <option value="Descargando">Descargando</option>
+        <option value="Por cargar">Por cargar</option>
+        <option value="Atendido">Atendido</option>
+        <option value="Despachado">Despachado</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button id="btnCancelAdd">Cancelar</button>
+      <button class="btn-primary" id="btnSaveAdd">Guardar</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalBulk" style="display:none;">
+    <h2>Cargar lista de placas</h2>
+    <p class="hint">Una placa por linea. Opcional: PLACA,TIPO,HORA,ESTATUS</p>
+    <textarea id="inputBulk" rows="6" placeholder="ABC-123
+DEF-456,Despacho,14:30,Pendiente"></textarea>
+    <div class="modal-actions">
+      <button id="btnCancelBulk">Cancelar</button>
+      <button class="btn-primary" id="btnSaveBulk">Cargar</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalConfirmClear" style="display:none;">
+    <h2>Borrar todo</h2>
+    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Esto eliminara las unidades que tengas registradas. Esta accion no se puede deshacer. ¿Continuar?</p>
+    <div class="modal-actions">
+      <button id="btnCancelClear">Cancelar</button>
+      <button class="btn-danger" id="btnConfirmClear" style="background:#A32D2D; color:#fff; border-color:#A32D2D;">Borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var STORAGE_KEY = 'unidades_transporte_v2';
+  var TIPOS = ['Recepcion','Despacho','Traslado','Rece/Desp'];
+  var data = [];
+
+  var EJEMPLO = [
+    ['ABC-101','Recepcion','06:10','Descargando'],
+    ['ABC-102','Recepcion','06:25','Descargando'],
+    ['ABC-103','Recepcion','06:40','Por cargar'],
+    ['ABC-104','Despacho','07:00','Pendiente'],
+    ['ABC-105','Despacho','07:15','Pendiente'],
+    ['ABC-106','Traslado','07:30','Por cargar'],
+    ['ABC-107','Rece/Desp','07:45','Descargando'],
+    ['ABC-108','Recepcion','08:00','Pendiente'],
+    ['ABC-109','Despacho','08:10','Descargando'],
+    ['ABC-110','Recepcion','08:20','Por cargar'],
+    ['ABC-111','Traslado','08:35','Pendiente'],
+    ['ABC-112','Despacho','08:50','Por cargar'],
+    ['ABC-113','Recepcion','09:00','Descargando'],
+    ['ABC-114','Rece/Desp','09:10','Pendiente'],
+    ['ABC-115','Despacho','09:25','Descargando'],
+    ['ABC-116','Recepcion','09:40','Por cargar'],
+    ['ABC-117','Traslado','09:55','Pendiente'],
+    ['ABC-118','Despacho','10:05','Descargando'],
+    ['ABC-119','Recepcion','10:15','Pendiente'],
+    ['ABC-120','Recepcion','10:30','Por cargar'],
+    ['ABC-121','Despacho','10:45','Pendiente'],
+    ['ABC-122','Traslado','11:00','Descargando'],
+    ['ABC-123','Rece/Desp','11:10','Por cargar'],
+    ['ABC-124','Recepcion','11:25','Pendiente'],
+    ['ABC-125','Despacho','11:40','Descargando'],
+    ['ABC-126','Recepcion','11:55','Pendiente'],
+    ['ABC-127','Traslado','12:05','Por cargar'],
+    ['ABC-128','Despacho','12:20','Pendiente'],
+    ['ABC-129','Recepcion','12:35','Descargando'],
+    ['ABC-130','Rece/Desp','12:50','Pendiente'],
+    ['ABC-131','Despacho','13:05','Por cargar'],
+    ['ABC-132','Recepcion','13:20','Descargando']
+  ];
+
+  function genId(){ return 'u_' + Date.now() + '_' + Math.floor(Math.random()*100000); }
+
+  function seedEjemplo(){
+    data = EJEMPLO.map(function(row){
+      return { id: genId(), placa: row[0], tipo: row[1], hora: row[2], estatus: row[3] };
+    });
+    save();
+  }
+
+  var hoy = new Date();
+  document.getElementById('headerDate').textContent = hoy.toLocaleDateString('es-PE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function(){ t.style.display = 'none'; }, 2600);
+  }
+
+  function tipoClass(tipo){
+    if(tipo === 'Recepcion') return 'b-recepcion';
+    if(tipo === 'Despacho') return 'b-despacho';
+    if(tipo === 'Traslado') return 'b-traslado';
+    return 'b-recedesp';
+  }
+  function estatusClass(estatus){
+    if(estatus === 'Descargando') return 's-descargando';
+    if(estatus === 'Por cargar') return 's-porcargar';
+    if(estatus === 'Atendido') return 's-atendido';
+    if(estatus === 'Despachado') return 's-despachado';
+    return 's-pendiente';
+  }
+
+  var ORDEN_ESTATUS = ['Pendiente', 'Por cargar', 'Descargando', 'Atendido', 'Despachado'];
+  function siguienteEstatus(actual){
+    var idx = ORDEN_ESTATUS.indexOf(actual);
+    if(idx === -1 || idx === ORDEN_ESTATUS.length - 1) return null;
+    return ORDEN_ESTATUS[idx + 1];
+  }
+
+  function render(){
+    var fTipo = document.getElementById('filterTipo').value;
+    var fEstatus = document.getElementById('filterEstatus').value;
+
+    var ec = {Descargando:0, 'Por cargar':0, Pendiente:0, Atendido:0, Despachado:0};
+    var tc = {Recepcion:0, Despacho:0, Traslado:0, 'Rece/Desp':0};
+    data.forEach(function(u){
+      ec[u.estatus] = (ec[u.estatus]||0)+1;
+      tc[u.tipo] = (tc[u.tipo]||0)+1;
+    });
+
+    document.getElementById('metricsEstatus').innerHTML =
+      '<div class="metric m-pendiente"><p class="label">Total</p><p class="value">'+data.length+'</p></div>'+
+      '<div class="metric m-pendiente"><p class="label">Pendiente</p><p class="value">'+ec.Pendiente+'</p></div>'+
+      '<div class="metric m-porcargar"><p class="label">Por cargar</p><p class="value">'+ec['Por cargar']+'</p></div>'+
+      '<div class="metric m-descargando"><p class="label">Descargando</p><p class="value">'+ec.Descargando+'</p></div>'+
+      '<div class="metric m-atendido"><p class="label">Atendido</p><p class="value">'+ec.Atendido+'</p></div>'+
+      '<div class="metric m-despachado"><p class="label">Despachado</p><p class="value">'+ec.Despachado+'</p></div>';
+
+    document.getElementById('metricsTipo').innerHTML =
+      '<div class="metric m-recepcion"><p class="label">Recepcion</p><p class="value">'+tc.Recepcion+'</p></div>'+
+      '<div class="metric m-despacho"><p class="label">Despacho</p><p class="value">'+tc.Despacho+'</p></div>'+
+      '<div class="metric m-traslado"><p class="label">Traslado</p><p class="value">'+tc.Traslado+'</p></div>'+
+      '<div class="metric m-recedesp"><p class="label">Rece/Desp</p><p class="value">'+tc['Rece/Desp']+'</p></div>';
+
+    var filtered = data.filter(function(u){
+      if(fTipo && u.tipo !== fTipo) return false;
+      if(fEstatus && u.estatus !== fEstatus) return false;
+      return true;
+    });
+
+    var listEl = document.getElementById('list');
+    var emptyEl = document.getElementById('emptyState');
+    var tableEl = document.getElementById('unitTable');
+
+    if(filtered.length === 0){
+      listEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      tableEl.style.display = 'none';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    tableEl.style.display = 'table';
+
+    listEl.innerHTML = filtered.map(function(u){
+      var globalIdx = data.indexOf(u);
+      var isFirst = globalIdx === 0;
+      var isLast = globalIdx === data.length - 1;
+      return '<tr>'+
+        '<td><div class="order-btns">'+
+          '<button data-up="'+u.id+'" aria-label="Subir prioridad" '+(isFirst?'disabled':'')+'>&#9650;</button>'+
+          '<button data-down="'+u.id+'" aria-label="Bajar prioridad" '+(isLast?'disabled':'')+'>&#9660;</button>'+
+        '</div></td>'+
+        '<td class="placa">'+u.placa+'</td>'+
+        '<td><span class="badge '+tipoClass(u.tipo)+'">'+u.tipo+'</span></td>'+
+        '<td><input class="hora-input" type="time" data-hora="'+u.id+'" value="'+(u.hora||'')+'"></td>'+
+        '<td><div style="display:flex; align-items:center; gap:3px;"><select class="estatus-select '+estatusClass(u.estatus)+'" data-estatus="'+u.id+'">'+
+          '<option value="Pendiente"'+(u.estatus==='Pendiente'?' selected':'')+'>Pendiente</option>'+
+          '<option value="Por cargar"'+(u.estatus==='Por cargar'?' selected':'')+'>Por cargar</option>'+
+          '<option value="Descargando"'+(u.estatus==='Descargando'?' selected':'')+'>Descargando</option>'+
+          '<option value="Atendido"'+(u.estatus==='Atendido'?' selected':'')+'>Atendido</option>'+
+          '<option value="Despachado"'+(u.estatus==='Despachado'?' selected':'')+'>Despachado</option>'+
+        '</select>'+
+        (siguienteEstatus(u.estatus) ? '<button class="next-btn" data-next="'+u.id+'" aria-label="Avanzar al siguiente estatus" title="Pasar a: '+siguienteEstatus(u.estatus)+'">&#10148;</button>' : '')+
+        '</div></td>'+
+        '<td><button class="del-btn" data-del="'+u.id+'" aria-label="Eliminar">&#10005;</button></td>'+
+      '</tr>';
+    }).join('');
+
+    listEl.querySelectorAll('[data-del]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-del');
+        data = data.filter(function(u){ return u.id !== id; });
+        save(); render();
+      });
+    });
+    listEl.querySelectorAll('[data-estatus]').forEach(function(sel){
+      sel.className = sel.className.replace(/s-\S+/g, '').trim();
+      sel.addEventListener('change', function(){
+        var id = sel.getAttribute('data-estatus');
+        data.forEach(function(u){ if(u.id === id) u.estatus = sel.value; });
+        save(); render();
+      });
+    });
+    listEl.querySelectorAll('[data-hora]').forEach(function(inp){
+      inp.addEventListener('change', function(){
+        var id = inp.getAttribute('data-hora');
+        data.forEach(function(u){ if(u.id === id) u.hora = inp.value; });
+        save();
+      });
+    });
+    listEl.querySelectorAll('[data-up]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        moveUnit(btn.getAttribute('data-up'), -1);
+      });
+    });
+    listEl.querySelectorAll('[data-down]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        moveUnit(btn.getAttribute('data-down'), 1);
+      });
+    });
+    listEl.querySelectorAll('[data-next]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-next');
+        data.forEach(function(u){
+          if(u.id === id){
+            var sig = siguienteEstatus(u.estatus);
+            if(sig) u.estatus = sig;
+          }
+        });
+        save(); render();
+      });
+    });
+  }
+
+  function moveUnit(id, dir){
+    var idx = data.findIndex(function(u){ return u.id === id; });
+    var newIdx = idx + dir;
+    if(idx < 0 || newIdx < 0 || newIdx >= data.length) return;
+    var tmp = data[idx];
+    data[idx] = data[newIdx];
+    data[newIdx] = tmp;
+    save(); render();
+  }
+
+  var syncing = false;
+
+  function save(){
+    syncing = true;
+    dbRef.set(data).catch(function(e){ console.error('firebase set error', e); }).finally(function(){
+      setTimeout(function(){ syncing = false; }, 200);
+    });
+  }
+
+  function load(){
+    dbRef.on('value', function(snapshot){
+      var val = snapshot.val();
+      if(val === null){
+        seedEjemplo();
+        return;
+      }
+      data = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+      render();
+    }, function(err){
+      console.error('firebase read error', err);
+      showToast('No se pudo conectar con la base de datos compartida');
+    });
+  }
+
+  function openModal(which){
+    document.getElementById('modalOverlay').style.display = 'flex';
+    document.getElementById('modalAdd').style.display = which==='add' ? 'block' : 'none';
+    document.getElementById('modalBulk').style.display = which==='bulk' ? 'block' : 'none';
+    document.getElementById('modalConfirmClear').style.display = which==='clear' ? 'block' : 'none';
+  }
+  function closeModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
+
+  document.getElementById('btnAdd').addEventListener('click', function(){
+    document.getElementById('inputPlaca').value = '';
+    document.getElementById('inputTipo').value = 'Recepcion';
+    document.getElementById('inputHora').value = '';
+    document.getElementById('inputEstatus').value = 'Pendiente';
+    document.getElementById('fieldPlaca').classList.remove('error');
+    document.getElementById('fieldHora').classList.remove('error');
+    openModal('add');
+  });
+  document.getElementById('btnBulk').addEventListener('click', function(){
+    document.getElementById('inputBulk').value = '';
+    openModal('bulk');
+  });
+  document.getElementById('btnClearAll').addEventListener('click', function(){
+    openModal('clear');
+  });
+  document.getElementById('btnConfirmClear').addEventListener('click', function(){
+    data = [];
+    save();
+    render();
+    closeModal();
+    showToast('Todas las unidades fueron eliminadas');
+  });
+  document.getElementById('btnCancelClear').addEventListener('click', closeModal);
+  document.getElementById('btnCancelAdd').addEventListener('click', closeModal);
+  document.getElementById('btnCancelBulk').addEventListener('click', closeModal);
+  document.getElementById('modalOverlay').addEventListener('click', function(e){
+    if(e.target === document.getElementById('modalOverlay')) closeModal();
+  });
+
+  document.getElementById('btnSortHora').addEventListener('click', function(){
+    data.sort(function(a, b){
+      var ha = a.hora || '99:99';
+      var hb = b.hora || '99:99';
+      return ha.localeCompare(hb);
+    });
+    save(); render();
+    showToast('Ordenado por hora de llegada');
+  });
+
+  document.getElementById('btnSaveAdd').addEventListener('click', function(){
+    var placa = document.getElementById('inputPlaca').value.trim().toUpperCase();
+    var hora = document.getElementById('inputHora').value;
+    var placaField = document.getElementById('fieldPlaca');
+    var horaField = document.getElementById('fieldHora');
+
+    var faltantes = [];
+    if(!placa){ placaField.classList.add('error'); faltantes.push('placa'); } else { placaField.classList.remove('error'); }
+    if(!hora){ horaField.classList.add('error'); faltantes.push('hora de llegada'); } else { horaField.classList.remove('error'); }
+
+    if(faltantes.length){
+      showToast('Falta llenar: ' + faltantes.join(' y '));
+      return;
+    }
+
+    data.push({
+      id: genId(),
+      placa: placa,
+      tipo: document.getElementById('inputTipo').value,
+      hora: hora,
+      estatus: document.getElementById('inputEstatus').value
+    });
+    save(); render(); closeModal();
+  });
+
+  document.getElementById('btnSaveBulk').addEventListener('click', function(){
+    var raw = document.getElementById('inputBulk').value;
+    var lines = raw.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var agregadas = 0;
+    lines.forEach(function(line){
+      var parts = line.split(',').map(function(p){ return p.trim(); });
+      var placa = (parts[0]||'').toUpperCase();
+      if(!placa) return;
+      var tipoRaw = parts[1] || 'Recepcion';
+      var tipo = 'Recepcion';
+      TIPOS.forEach(function(t){ if(t.toLowerCase() === tipoRaw.toLowerCase()) tipo = t; });
+      var hora = parts[2] || '';
+      var estatus = parts[3] || 'Pendiente';
+      if(['Pendiente','Por cargar','Descargando','Atendido','Despachado'].indexOf(estatus) === -1) estatus = 'Pendiente';
+      data.push({ id: genId(), placa: placa, tipo: tipo, hora: hora, estatus: estatus });
+      agregadas++;
+    });
+    save(); render(); closeModal();
+    if(agregadas) showToast(agregadas + ' unidad(es) cargadas');
+  });
+
+  var TIPO_FILL = {
+    'Recepcion': 'FFE6F1FB',
+    'Despacho': 'FFEAF3DE',
+    'Traslado': 'FFFAEEDA',
+    'Rece/Desp': 'FFEEEDFE'
+  };
+  var TIPO_FONT = {
+    'Recepcion': 'FF0C447C',
+    'Despacho': 'FF27500A',
+    'Traslado': 'FF633806',
+    'Rece/Desp': 'FF3C3489'
+  };
+  var ESTATUS_FILL = {
+    'Descargando': 'FFEAF3DE',
+    'Por cargar': 'FFFAEEDA',
+    'Pendiente': 'FFEDEBE3',
+    'Atendido': 'FFE1F5EE',
+    'Despachado': 'FFE6F1FB'
+  };
+  var ESTATUS_FONT = {
+    'Descargando': 'FF27500A',
+    'Por cargar': 'FF633806',
+    'Pendiente': 'FF6B6A63',
+    'Atendido': 'FF04342C',
+    'Despachado': 'FF0C447C'
+  };
+
+  document.getElementById('btnExport').addEventListener('click', function(){
+    if(!data.length){
+      showToast('No hay unidades para exportar');
+      return;
+    }
+
+    var workbook = new ExcelJS.Workbook();
+    var sheet = workbook.addWorksheet('Status CD OQUENDO');
+
+    sheet.mergeCells('A1:E1');
+    var titleCell = sheet.getCell('A1');
+    titleCell.value = 'Status CD OQUENDO - ' + new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+    titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A18' } };
+    sheet.getRow(1).height = 22;
+
+    sheet.addRow([]);
+
+    var headerRow = sheet.addRow(['Prioridad', 'Placa', 'Tipo', 'Hora de llegada', 'Estatus']);
+    headerRow.eachCell(function(cell){
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF5F5E5A' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFD8D6CC' } } };
+    });
+
+    data.forEach(function(u, idx){
+      var row = sheet.addRow([idx + 1, u.placa, u.tipo, u.hora || '', u.estatus]);
+      row.getCell(1).alignment = { horizontal: 'center' };
+      row.getCell(4).alignment = { horizontal: 'center' };
+
+      var tipoCell = row.getCell(3);
+      tipoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TIPO_FILL[u.tipo] || 'FFFFFFFF' } };
+      tipoCell.font = { bold: true, color: { argb: TIPO_FONT[u.tipo] || 'FF1A1A18' } };
+      tipoCell.alignment = { horizontal: 'center' };
+
+      var estatusCell = row.getCell(5);
+      estatusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ESTATUS_FILL[u.estatus] || 'FFFFFFFF' } };
+      estatusCell.font = { bold: true, color: { argb: ESTATUS_FONT[u.estatus] || 'FF1A1A18' } };
+      estatusCell.alignment = { horizontal: 'center' };
+
+      row.eachCell(function(cell){
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FFEFEDE6' } } };
+      });
+    });
+
+    sheet.getColumn(1).width = 11;
+    sheet.getColumn(2).width = 16;
+    sheet.getColumn(3).width = 16;
+    sheet.getColumn(4).width = 16;
+    sheet.getColumn(5).width = 16;
+
+    workbook.xlsx.writeBuffer().then(function(buffer){
+      var blob = new Blob([buffer], { type: 'application/octet-stream' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      var fecha = new Date().toISOString().slice(0,10);
+      a.href = url;
+      a.download = 'status-cd-oquendo-' + fecha + '.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }).catch(function(err){
+      console.error(err);
+      showToast('Error al generar el Excel');
+    });
+  });
+
+  document.getElementById('filterTipo').addEventListener('change', render);
+  document.getElementById('filterEstatus').addEventListener('change', render);
+
+  load();
+})();
+</script>
+</body>
+</html>
