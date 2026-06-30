@@ -20,6 +20,9 @@
   };
   firebase.initializeApp(firebaseConfig);
   var dbRef = firebase.database().ref('unidades');
+  var historicoRef = firebase.database().ref('historico');
+  // Pega aqui la URL de tu Google Apps Script (Web App) cuando la tengas. Deja vacio "" si todavia no la configuras.
+  var GOOGLE_SHEETS_URL = "";
 </script>
 <style>
   * { box-sizing: border-box; }
@@ -164,6 +167,9 @@
     <button id="btnPng">Descargar imagen</button>
     <button class="btn-danger" id="btnClearAll">Borrar todo</button>
   </div>
+  <div class="actions-row2 no-export">
+    <button class="btn-export" id="btnCerrarDia" style="background:#0C447C; border-color:#0C447C;">Cerrar dia (guardar historico)</button>
+  </div>
 
   <p class="section-label">Por estatus</p>
   <div class="metrics-row metrics-estatus" id="metricsEstatus"></div>
@@ -252,7 +258,7 @@
 
   <div class="modal" id="modalBulk" style="display:none;">
     <h2>Cargar lista de placas</h2>
-    <p class="hint">Una placa por linea. Opcional: PLACA,TIPO,HORA,ESTATUS</p>
+    <p class="hint">Una placa por linea. Opcional: PLACA,TIPO,HORA,ESTATUS,MINUTOS_LEADTIME (el ultimo campo solo aplica si el estatus es Atendido o Despachado)</p>
     <textarea id="inputBulk" rows="6" placeholder="ABC-123
 DEF-456,Despacho,14:30,Pendiente"></textarea>
     <div class="modal-actions">
@@ -267,6 +273,15 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     <div class="modal-actions">
       <button id="btnCancelClear">Cancelar</button>
       <button class="btn-danger" id="btnConfirmClear" style="background:#A32D2D; color:#fff; border-color:#A32D2D;">Borrar todo</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalConfirmCerrar" style="display:none;">
+    <h2>Cerrar dia</h2>
+    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Esto guarda una copia de todas las unidades de hoy en el historico (Firebase y Google Sheets si esta conectado). La vista en vivo no se borra, puedes seguir trabajando o usar "Borrar todo" despues para empezar el dia siguiente. ¿Continuar?</p>
+    <div class="modal-actions">
+      <button id="btnCancelCerrar">Cancelar</button>
+      <button class="btn-primary" id="btnConfirmCerrar" style="background:#0C447C; border-color:#0C447C;">Guardar historico</button>
     </div>
   </div>
 </div>
@@ -315,6 +330,57 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
   ];
 
   function genId(){ return 'u_' + Date.now() + '_' + Math.floor(Math.random()*100000); }
+
+  function fechaHoyISO(){
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var day = String(d.getDate()).padStart(2,'0');
+    return y + '-' + m + '-' + day;
+  }
+
+  function cerrarDia(){
+    if(!data.length){
+      showToast('No hay unidades para guardar en el historico');
+      return;
+    }
+    var fecha = fechaHoyISO();
+    var snapshot = data.map(function(u){
+      var inicio = parseHoraHoy(u.hora);
+      var tiempoTexto = '-';
+      if(inicio){
+        tiempoTexto = u.tsFin ? formatDuracion(u.tsFin - inicio.getTime()) : formatDuracion(Date.now() - inicio.getTime());
+      }
+      return {
+        fecha: fecha,
+        placa: u.placa,
+        tipo: u.tipo,
+        hora: u.hora || '',
+        estatus: u.estatus,
+        tiempo: tiempoTexto
+      };
+    });
+
+    historicoRef.child(fecha).set(snapshot).then(function(){
+      showToast('Historico guardado en Firebase (' + fecha + ')');
+    }).catch(function(e){
+      console.error('error guardando historico', e);
+      showToast('Error al guardar historico en Firebase');
+    });
+
+    if(GOOGLE_SHEETS_URL){
+      fetch(GOOGLE_SHEETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ fecha: fecha, registros: snapshot })
+      }).then(function(){
+        showToast('Enviado a Google Sheets');
+      }).catch(function(e){
+        console.error('error enviando a sheets', e);
+        showToast('No se pudo enviar a Google Sheets');
+      });
+    }
+  }
 
   function seedEjemplo(){
     data = EJEMPLO.map(function(row){
@@ -605,6 +671,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     document.getElementById('modalAdd').style.display = which==='add' ? 'block' : 'none';
     document.getElementById('modalBulk').style.display = which==='bulk' ? 'block' : 'none';
     document.getElementById('modalConfirmClear').style.display = which==='clear' ? 'block' : 'none';
+    document.getElementById('modalConfirmCerrar').style.display = which==='cerrar' ? 'block' : 'none';
   }
   function closeModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
 
@@ -623,6 +690,14 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
   });
   document.getElementById('btnClearAll').addEventListener('click', function(){
     openModal('clear');
+  });
+  document.getElementById('btnCerrarDia').addEventListener('click', function(){
+    openModal('cerrar');
+  });
+  document.getElementById('btnCancelCerrar').addEventListener('click', closeModal);
+  document.getElementById('btnConfirmCerrar').addEventListener('click', function(){
+    cerrarDia();
+    closeModal();
   });
   document.getElementById('btnConfirmClear').addEventListener('click', function(){
     data = [];
@@ -709,7 +784,15 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
       var hora = parts[2] || '';
       var estatus = parts[3] || 'Pendiente';
       if(['Pendiente','Por cargar','Descargando','Atendido','Despachado'].indexOf(estatus) === -1) estatus = 'Pendiente';
-      data.push({ id: genId(), placa: placa, tipo: tipo, hora: hora, estatus: estatus });
+      var nuevo = { id: genId(), placa: placa, tipo: tipo, hora: hora, estatus: estatus };
+      var leadMin = parts[4] ? parseInt(parts[4], 10) : null;
+      if(leadMin && esFinal(estatus)){
+        var inicio = parseHoraHoy(hora);
+        if(inicio){
+          nuevo.tsFin = inicio.getTime() + leadMin * 60000;
+        }
+      }
+      data.push(nuevo);
       agregadas++;
     });
     save(); render(); closeModal();
