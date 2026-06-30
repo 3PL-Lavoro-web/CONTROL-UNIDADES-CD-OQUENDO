@@ -288,6 +288,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
   <div class="modal" id="modalConfirmCerrar" style="display:none;">
     <h2>Cerrar dia</h2>
     <p class="hint" style="font-size:12.5px; color:#1A1A18;">Esto guarda una copia de todas las unidades de hoy en el historico (Firebase y Google Sheets si esta conectado). La vista en vivo no se borra, puedes seguir trabajando o usar "Borrar todo" despues para empezar el dia siguiente. ¿Continuar?</p>
+    <p class="hint" id="warnYaCerrado" style="display:none; font-size:12.5px; color:#A32D2D; background:#FCEBEB; border-radius:8px; padding:8px 10px; margin-top:8px;">⚠ El dia de hoy ya fue cerrado antes. Si confirmas, se va a sobrescribir el historico de Firebase con la lista actual, y se van a agregar filas duplicadas en Google Sheets (no se borran las anteriores).</p>
     <div class="modal-actions">
       <button id="btnCancelCerrar">Cancelar</button>
       <button class="btn-primary" id="btnConfirmCerrar" style="background:#0C447C; border-color:#0C447C;">Guardar historico</button>
@@ -712,7 +713,18 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     openModal('clear');
   });
   document.getElementById('btnCerrarDia').addEventListener('click', function(){
-    openModal('cerrar');
+    var warnEl = document.getElementById('warnYaCerrado');
+    warnEl.style.display = 'none';
+    var fecha = fechaHoyISO();
+    historicoRef.child(fecha).once('value', function(snap){
+      if(snap.exists()){
+        warnEl.style.display = 'block';
+      }
+      openModal('cerrar');
+    }, function(err){
+      console.error('error verificando historico', err);
+      openModal('cerrar');
+    });
   });
   document.getElementById('btnCancelCerrar').addEventListener('click', closeModal);
   document.getElementById('btnConfirmCerrar').addEventListener('click', function(){
