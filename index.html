@@ -71,7 +71,7 @@
 
   .section-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; color: #8A8880; margin: 10px 0 5px; font-weight: 600; }
   .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .metrics-row.metrics-estatus { grid-template-columns: repeat(3, 1fr); }
+  .metrics-row.metrics-estatus { grid-template-columns: repeat(4, 1fr); }
   .metric { background: #EDEBE3; border-radius: 8px; padding: 7px 4px; text-align: center; }
   .metric .label { font-size: 9.5px; color: #6B6A63; margin: 0 0 2px; white-space: nowrap; }
   .metric .value { font-size: 16px; font-weight: 600; margin: 0; }
@@ -80,6 +80,7 @@
   .metric.m-descargando { background: #EAF3DE; }
   .metric.m-atendido { background: #E1F5EE; }
   .metric.m-despachado { background: #E6F1FB; }
+  .metric.m-noestacd { background: #F0EEEA; }
   .metric.m-recepcion { background: #E6F1FB; }
   .metric.m-despacho { background: #EAF3DE; }
   .metric.m-traslado { background: #FAEEDA; }
@@ -117,6 +118,7 @@
   .s-pendiente { background: #EDEBE3; color: #6B6A63; border-color: #D8D6CC; }
   .s-atendido { background: #E1F5EE; color: #04342C; border-color: #9FE1CB; }
   .s-despachado { background: #E6F1FB; color: #0C447C; border-color: #85B7EB; }
+  .s-noestacd { background: #F0EEEA; color: #5C5A52; border-color: #C9C6BC; }
   input.hora-input { font-size: 11px; padding: 3px 2px; width: 74px; border-radius: 6px; }
   .del-btn { border: none; background: none; padding: 1px; font-size: 13px; color: #B0AEA5; cursor: pointer; }
   .next-btn { border: none; background: none; padding: 1px 2px; font-size: 13px; color: #27500A; cursor: pointer; flex-shrink: 0; }
@@ -197,6 +199,7 @@
       <option value="Pendiente">Pendiente</option>
       <option value="Atendido">Atendido</option>
       <option value="Despachado">Despachado</option>
+      <option value="No esta en CD">No esta en CD</option>
     </select>
   </div>
 
@@ -250,6 +253,7 @@
         <option value="Por cargar">Por cargar</option>
         <option value="Atendido">Atendido</option>
         <option value="Despachado">Despachado</option>
+        <option value="No esta en CD">No esta en CD</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -478,6 +482,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     if(estatus === 'Por cargar') return 's-porcargar';
     if(estatus === 'Atendido') return 's-atendido';
     if(estatus === 'Despachado') return 's-despachado';
+    if(estatus === 'No esta en CD') return 's-noestacd';
     return 's-pendiente';
   }
 
@@ -492,7 +497,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     var fTipo = document.getElementById('filterTipo').value;
     var fEstatus = document.getElementById('filterEstatus').value;
 
-    var ec = {Descargando:0, 'Por cargar':0, Pendiente:0, Atendido:0, Despachado:0};
+    var ec = {Descargando:0, 'Por cargar':0, Pendiente:0, Atendido:0, Despachado:0, 'No esta en CD':0};
     var tc = {Recepcion:0, Despacho:0, Traslado:0, 'Rece/Desp':0};
     data.forEach(function(u){
       ec[u.estatus] = (ec[u.estatus]||0)+1;
@@ -505,7 +510,8 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
       '<div class="metric m-porcargar"><p class="label">Por cargar</p><p class="value">'+ec['Por cargar']+'</p></div>'+
       '<div class="metric m-descargando"><p class="label">Descargando</p><p class="value">'+ec.Descargando+'</p></div>'+
       '<div class="metric m-atendido"><p class="label">Atendido</p><p class="value">'+ec.Atendido+'</p></div>'+
-      '<div class="metric m-despachado"><p class="label">Despachado</p><p class="value">'+ec.Despachado+'</p></div>';
+      '<div class="metric m-despachado"><p class="label">Despachado</p><p class="value">'+ec.Despachado+'</p></div>'+
+      '<div class="metric m-noestacd"><p class="label">No esta en CD</p><p class="value">'+ec['No esta en CD']+'</p></div>';
 
     document.getElementById('metricsTipo').innerHTML =
       '<div class="metric m-recepcion"><p class="label">Recepcion</p><p class="value">'+tc.Recepcion+'</p></div>'+
@@ -571,6 +577,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
           '<option value="Descargando"'+(u.estatus==='Descargando'?' selected':'')+'>Descargando</option>'+
           '<option value="Atendido"'+(u.estatus==='Atendido'?' selected':'')+'>Atendido</option>'+
           '<option value="Despachado"'+(u.estatus==='Despachado'?' selected':'')+'>Despachado</option>'+
+          '<option value="No esta en CD"'+(u.estatus==='No esta en CD'?' selected':'')+'>No esta en CD</option>'+
         '</select>'+
         (siguienteEstatus(u.estatus) ? '<button class="next-btn" data-next="'+u.id+'" aria-label="Avanzar al siguiente estatus" title="Pasar a: '+siguienteEstatus(u.estatus)+'">&#10148;</button>' : '')+
         '</div></td>'+
@@ -810,7 +817,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     TIPOS.forEach(function(t){ if(t.toLowerCase() === (tipoRaw||'').toString().trim().toLowerCase()) tipo = t; });
     var hora = (horaRaw || '').toString().trim();
     var estatus = (estatusRaw || 'Pendiente').toString().trim();
-    if(['Pendiente','Por cargar','Descargando','Atendido','Despachado'].indexOf(estatus) === -1) estatus = 'Pendiente';
+    if(['Pendiente','Por cargar','Descargando','Atendido','Despachado','No esta en CD'].indexOf(estatus) === -1) estatus = 'Pendiente';
     var nuevo = { id: genId(), placa: placa, tipo: tipo, hora: hora, estatus: estatus };
     var leadMin = leadMinRaw ? parseInt(leadMinRaw, 10) : null;
     if(leadMin && esFinal(estatus)){
@@ -913,14 +920,16 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     'Por cargar': 'FFFAEEDA',
     'Pendiente': 'FFEDEBE3',
     'Atendido': 'FFE1F5EE',
-    'Despachado': 'FFE6F1FB'
+    'Despachado': 'FFE6F1FB',
+    'No esta en CD': 'FFF0EEEA'
   };
   var ESTATUS_FONT = {
     'Descargando': 'FF27500A',
     'Por cargar': 'FF633806',
     'Pendiente': 'FF6B6A63',
     'Atendido': 'FF04342C',
-    'Despachado': 'FF0C447C'
+    'Despachado': 'FF0C447C',
+    'No esta en CD': 'FF5C5A52'
   };
 
   document.getElementById('btnExport').addEventListener('click', function(){
