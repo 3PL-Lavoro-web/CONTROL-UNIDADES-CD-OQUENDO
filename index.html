@@ -21,6 +21,7 @@
   firebase.initializeApp(firebaseConfig);
   var dbRef = firebase.database().ref('unidades');
   var historicoRef = firebase.database().ref('historico');
+  var metaRef = firebase.database().ref('meta');
   // Pega aqui la URL de tu Google Apps Script (Web App) cuando la tengas. Deja vacio "" si todavia no la configuras.
   var GOOGLE_SHEETS_URL = "";
 </script>
@@ -647,7 +648,15 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     dbRef.on('value', function(snapshot){
       var val = snapshot.val();
       if(val === null){
-        seedEjemplo();
+        metaRef.child('seeded').once('value', function(metaSnap){
+          if(metaSnap.val() === true){
+            data = [];
+            render();
+          } else {
+            seedEjemplo();
+            metaRef.child('seeded').set(true);
+          }
+        });
         return;
       }
       data = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
@@ -702,6 +711,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
   document.getElementById('btnConfirmClear').addEventListener('click', function(){
     data = [];
     save();
+    metaRef.child('seeded').set(true);
     render();
     closeModal();
     showToast('Todas las unidades fueron eliminadas');
