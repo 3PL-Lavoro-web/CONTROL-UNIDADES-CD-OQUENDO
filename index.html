@@ -669,12 +669,28 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
         });
         return;
       }
+      var faltaOrden = false;
       data = Object.keys(val).map(function(k){
         var u = val[k] || {};
         u.id = k;
-        if(typeof u.orden !== 'number') u.orden = 0;
+        if(typeof u.orden !== 'number') faltaOrden = true;
         return u;
       });
+
+      if(faltaOrden){
+        var basePorHora = data.slice().sort(function(a, b){
+          var ha = a.hora || '99:99';
+          var hb = b.hora || '99:99';
+          return ha.localeCompare(hb);
+        });
+        var patchOrden = {};
+        basePorHora.forEach(function(u, idx){
+          u.orden = idx;
+          patchOrden[u.id + '/orden'] = idx;
+        });
+        dbRef.update(patchOrden).catch(function(e){ console.error('error asignando orden', e); });
+      }
+
       data.sort(function(a, b){ return a.orden - b.orden; });
       data.forEach(function(u){
         if(esFinal(u.estatus) && !u.tsFin){
