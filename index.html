@@ -169,6 +169,7 @@
   <div class="actions-row2 no-export">
     <button id="btnSortHora">Ordenar por hora</button>
     <button id="btnPng">Descargar imagen</button>
+    <button id="btnShareWA" style="background:#25D366; color:#fff; border-color:#1DA851;">&#128205; WhatsApp</button>
     <button class="btn-danger" id="btnClearAll">Borrar todo</button>
   </div>
   <div class="actions-row2 no-export">
@@ -301,6 +302,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="captureAreaWA" style="position:fixed; left:-9999px; top:0; background:#fff; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"></div>
 
 <script>
 (function(){
@@ -1040,6 +1042,107 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
     });
   });
 
+  function buildWACapture(){
+    var ahora = new Date();
+    var fechaTitulo = ahora.toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+    var horaActual = ahora.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+
+    var TIPO_COLOR = {
+      'Recepcion': {bg:'#E6F1FB', fg:'#0C447C'},
+      'Despacho':  {bg:'#EAF3DE', fg:'#27500A'},
+      'Traslado':  {bg:'#FAEEDA', fg:'#633806'},
+      'Rece/Desp': {bg:'#EEEDFE', fg:'#3C3489'}
+    };
+
+    var ESTATUS_COLOR = {
+      'No se encuentra en CD':    {bg:'#F2F2F2', fg:'#404040'},
+      'Pendiente':                {bg:'#C00000', fg:'#FFFFFF'},
+      'En Proceso de atencion':   {bg:'#FFD7D7', fg:'#7B2020'},
+      'Cargado pendiente factura':{bg:'#F59B27', fg:'#FFFFFF'},
+      'Cargado y Facturado':      {bg:'#E2EFDA', fg:'#375623'},
+      'Atendido':                 {bg:'#1E7145', fg:'#FFFFFF'}
+    };
+
+    var filas = data.map(function(u, idx){
+      var tc = TIPO_COLOR[u.tipo] || {bg:'#EDEBE3', fg:'#1A1A18'};
+      var ec = ESTATUS_COLOR[u.estatus] || {fg:'#1A1A18'};
+      var estatusLabel = u.estatus === 'En Proceso de atencion' ? 'En Proceso de Atención' : u.estatus;
+      return '<tr style="background:'+(idx%2===0?'#FFFFFF':'#F7F6F2')+';">'+
+        '<td style="padding:6px 10px; text-align:center; font-size:12px; border-bottom:1px solid #EFEDE6;">'+(idx+1)+'</td>'+
+        '<td style="padding:6px 10px; font-weight:600; font-size:12px; letter-spacing:0.3px; border-bottom:1px solid #EFEDE6;">'+u.placa+'</td>'+
+        '<td style="padding:6px 8px; border-bottom:1px solid #EFEDE6;">'+
+          '<span style="background:'+tc.bg+'; color:'+tc.fg+'; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap;">'+u.tipo+'</span>'+
+        '</td>'+
+        '<td style="padding:6px 10px; font-size:12px; text-align:center; border-bottom:1px solid #EFEDE6;">'+(u.hora||'-')+'</td>'+
+        '<td style="padding:6px 8px; border-bottom:1px solid #EFEDE6; text-align:center;">'+
+          '<span style="background:'+ec.bg+'; color:'+ec.fg+'; font-size:11px; font-weight:700; padding:3px 10px; border-radius:6px; white-space:nowrap; display:inline-block;">'+estatusLabel+'</span>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    var html =
+      '<div style="background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.12); width:500px;">'+
+        '<div style="background:#1A1A18; padding:12px 16px; text-align:center;">'+
+          '<p style="margin:0; color:#fff; font-weight:700; font-size:14px; letter-spacing:0.3px;">Status CD OQUENDO</p>'+
+          '<p style="margin:4px 0 0; color:#AAAAAA; font-size:11px;">'+fechaTitulo+' &nbsp;|&nbsp; '+horaActual+'</p>'+
+        '</div>'+
+        '<table style="width:100%; border-collapse:collapse;">'+
+          '<thead>'+
+            '<tr style="background:#EDEBE3;">'+
+              '<th style="padding:7px 10px; font-size:11px; text-transform:uppercase; color:#6B6A63; font-weight:700; letter-spacing:0.3px; text-align:center;">Prioridad</th>'+
+              '<th style="padding:7px 10px; font-size:11px; text-transform:uppercase; color:#6B6A63; font-weight:700; letter-spacing:0.3px; text-align:left;">Placa</th>'+
+              '<th style="padding:7px 10px; font-size:11px; text-transform:uppercase; color:#6B6A63; font-weight:700; letter-spacing:0.3px; text-align:left;">Tipo</th>'+
+              '<th style="padding:7px 10px; font-size:11px; text-transform:uppercase; color:#6B6A63; font-weight:700; letter-spacing:0.3px; text-align:center;">Hora de llegada</th>'+
+              '<th style="padding:7px 10px; font-size:11px; text-transform:uppercase; color:#6B6A63; font-weight:700; letter-spacing:0.3px; text-align:left;">Estatus</th>'+
+            '</tr>'+
+          '</thead>'+
+          '<tbody>'+filas+'</tbody>'+
+        '</table>'+
+      '</div>';
+
+    return html;
+  }
+
+  document.getElementById('btnShareWA').addEventListener('click', function(){
+    if(!data.length){ showToast('No hay unidades para compartir'); return; }
+    showToast('Preparando reporte...');
+
+    var waArea = document.getElementById('captureAreaWA');
+    waArea.innerHTML = buildWACapture();
+    waArea.style.left = '-9999px';
+    waArea.style.display = 'block';
+
+    html2canvas(waArea, { backgroundColor: '#FFFFFF', scale: 2, useCORS: true }).then(function(canvas){
+      waArea.style.display = 'none';
+      canvas.toBlob(function(blob){
+        var ahora = new Date();
+        var fecha = ahora.toISOString().slice(0,10);
+        var horaArchivo = ahora.toTimeString().slice(0,8).replace(/:/g,'-');
+        var fileName = 'status-cd-oquendo-' + fecha + '_' + horaArchivo + '.png';
+        var file = new File([blob], fileName, { type:'image/png' });
+        var textoWA = 'Status CD OQUENDO – ' + ahora.toLocaleDateString('es-PE', {day:'2-digit', month:'long', year:'numeric'});
+
+        if(navigator.canShare && navigator.canShare({ files:[file] })){
+          navigator.share({ files:[file], text:textoWA }).catch(function(e){
+            if(e.name !== 'AbortError') console.error('share error', e);
+          });
+        } else {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = fileName;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          var waText = encodeURIComponent(textoWA + '\n(adjunta la imagen descargada)');
+          setTimeout(function(){ window.open('https://web.whatsapp.com/send?text='+waText, '_blank'); }, 800);
+          showToast('Imagen descargada. Adjuntala en WhatsApp Web.');
+        }
+      }, 'image/png');
+    }).catch(function(err){
+      waArea.style.display = 'none';
+      console.error(err);
+      showToast('Error al generar la imagen');
+    });
+  });
   document.getElementById('filterTipo').addEventListener('change', render);
   document.getElementById('filterEstatus').addEventListener('change', render);
 
