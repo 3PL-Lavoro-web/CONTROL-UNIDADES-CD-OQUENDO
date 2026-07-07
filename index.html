@@ -386,12 +386,12 @@ var LOGIN_USUARIO = 'lavoro';
 var LOGIN_CLAVE   = 'oquendo2026';
 // ── TIEMPO DE SESION ─────────────────────────────────────────────────────────
 // Minutos de inactividad antes de cerrar sesion automaticamente
-var MINUTOS_SESION = 60;
+var MINUTOS_SESION = 5;
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function loginInit(){
   var SESSION_KEY  = 'cdoq_auth';
-  var AVISO_SEG    = 60; // segundos de aviso antes de cerrar
+  var AVISO_SEG    = 20; // segundos de aviso antes de cerrar
   var inactivityTimer, countdownTimer, countdownVal;
 
   function mostrarApp(){
