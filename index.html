@@ -171,9 +171,34 @@
   #appContent { display: none; }
   #appContent.active { display: block; }
   .logout-btn { font-size: 11px; color: #8A8880; background: none; border: 1px solid #D8D6CC; border-radius: 6px; padding: 3px 8px; cursor: pointer; margin-top: 4px; }
+  #sessionWarning {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    align-items:center; justify-content:center; z-index:10000; padding:16px;
+  }
+  #sessionWarning.active { display:flex; }
+  .session-card {
+    background:#fff; border-radius:14px; padding:24px 20px; max-width:300px;
+    width:100%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.2);
+  }
+  .session-card h3 { margin:0 0 8px; font-size:16px; color:#C00000; }
+  .session-card p  { margin:0 0 18px; font-size:13px; color:#5A5A5A; line-height:1.5; }
+  .session-card .countdown { font-size:32px; font-weight:700; color:#C00000; margin:0 0 18px; }
+  .session-card .btn-extend { width:100%; background:#1A1A18; color:#fff; border:none; border-radius:8px; padding:11px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .session-card .btn-logout-now { width:100%; background:none; color:#8A8880; border:1px solid #D8D6CC; border-radius:8px; padding:8px; font-size:12px; cursor:pointer; font-family:inherit; margin-top:8px; }
 </style>
 </head>
 <body>
+
+<!-- AVISO SESION POR VENCER -->
+<div id="sessionWarning">
+  <div class="session-card">
+    <h3>⚠ Sesión por vencer</h3>
+    <p>Tu sesión se cerrará automáticamente por inactividad en:</p>
+    <div class="countdown" id="sessionCountdown">60</div>
+    <button class="btn-extend" id="btnExtendSession">Seguir conectado</button>
+    <button class="btn-logout-now" id="btnLogoutNow">Cerrar sesión ahora</button>
+  </div>
+</div>
 
 <!-- PANTALLA DE LOGIN -->
 <div id="loginScreen" class="active">
@@ -359,23 +384,78 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
 // ── CREDENCIALES DE ACCESO ── Cambia estos valores para tu equipo ──────────
 var LOGIN_USUARIO = 'lavoro';
 var LOGIN_CLAVE   = 'oquendo2026';
+// ── TIEMPO DE SESION ─────────────────────────────────────────────────────────
+// Minutos de inactividad antes de cerrar sesion automaticamente
+var MINUTOS_SESION = 60;
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function loginInit(){
-  var SESSION_KEY = 'cdoq_auth';
+  var SESSION_KEY  = 'cdoq_auth';
+  var AVISO_SEG    = 60; // segundos de aviso antes de cerrar
+  var inactivityTimer, countdownTimer, countdownVal;
+
   function mostrarApp(){
     document.getElementById('loginScreen').classList.remove('active');
     document.getElementById('appContent').classList.add('active');
+    iniciarTimer();
   }
   function mostrarLogin(){
     document.getElementById('loginScreen').classList.add('active');
     document.getElementById('appContent').classList.remove('active');
+    sessionStorage.removeItem(SESSION_KEY);
+    clearTimeout(inactivityTimer);
+    clearInterval(countdownTimer);
+    ocultarAviso();
   }
+  function mostrarAviso(){
+    countdownVal = AVISO_SEG;
+    document.getElementById('sessionCountdown').textContent = countdownVal;
+    document.getElementById('sessionWarning').classList.add('active');
+    countdownTimer = setInterval(function(){
+      countdownVal--;
+      document.getElementById('sessionCountdown').textContent = countdownVal;
+      if(countdownVal <= 0){
+        clearInterval(countdownTimer);
+        mostrarLogin();
+      }
+    }, 1000);
+  }
+  function ocultarAviso(){
+    document.getElementById('sessionWarning').classList.remove('active');
+    clearInterval(countdownTimer);
+  }
+  function iniciarTimer(){
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(function(){
+      mostrarAviso();
+    }, (MINUTOS_SESION * 60 - AVISO_SEG) * 1000);
+  }
+  function resetTimer(){
+    if(!sessionStorage.getItem(SESSION_KEY)) return;
+    if(document.getElementById('sessionWarning').classList.contains('active')) return;
+    iniciarTimer();
+  }
+
+  // Resetear timer con cualquier interaccion del usuario
+  ['click','keydown','touchstart','mousemove','scroll'].forEach(function(ev){
+    document.addEventListener(ev, resetTimer, { passive: true });
+  });
+
+  // Botones del aviso
+  document.getElementById('btnExtendSession').addEventListener('click', function(){
+    ocultarAviso();
+    iniciarTimer();
+  });
+  document.getElementById('btnLogoutNow').addEventListener('click', function(){
+    mostrarLogin();
+  });
+
   if(sessionStorage.getItem(SESSION_KEY) === '1'){
     mostrarApp();
   } else {
     mostrarLogin();
   }
+
   document.getElementById('btnLogin').addEventListener('click', function(){
     var u = document.getElementById('loginUser').value.trim();
     var p = document.getElementById('loginPass').value;
