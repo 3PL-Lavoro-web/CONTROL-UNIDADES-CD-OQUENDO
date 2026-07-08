@@ -641,8 +641,7 @@ var MINUTOS_SESION = 60;
     var totalMin = Math.floor(ms / 60000);
     var h = Math.floor(totalMin / 60);
     var m = totalMin % 60;
-    if(h > 0) return h + 'h ' + m + 'm';
-    return m + 'm';
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
   }
 
   function tiempoCell(u){
