@@ -110,10 +110,11 @@
   table.unit-table tr:nth-child(even) { background: #FAFAF8; }
   .placa { font-weight: 600; font-size: 12.5px; letter-spacing: 0.3px; }
   .badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; display: inline-block; white-space: nowrap; }
-  .b-recepcion { background: #E6F1FB; color: #0C447C; }
-  .b-despacho { background: #EAF3DE; color: #27500A; }
-  .b-traslado { background: #FAEEDA; color: #633806; }
-  .b-recedesp { background: #EEEDFE; color: #3C3489; }
+  select.tipo-select { font-size: 11px; padding: 2px 4px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; }
+  .tipo-select.b-recepcion { background: #E6F1FB; color: #0C447C; }
+  .tipo-select.b-despacho  { background: #EAF3DE; color: #27500A; }
+  .tipo-select.b-traslado  { background: #FAEEDA; color: #633806; }
+  .tipo-select.b-recedesp  { background: #EEEDFE; color: #3C3489; }
   select.estatus-select { font-size: 11px; padding: 3px 4px; border-radius: 6px; min-width: 155px; max-width: 185px; }
   .s-pendiente { background: #C00000; color: #FFFFFF; border-color: #900000; }
   .s-enproceso { background: #FFD7D7; color: #7B2020; border-color: #F4A0A0; }
@@ -768,7 +769,12 @@ var MINUTOS_SESION = 60;
         '<td class="placa">'+u.placa+'</td>'+
         '<td><input class="ntrans-input" type="text" data-ntrans="'+u.id+'" value="'+(u.ntransporte||'')+'" placeholder="-"></td>'+
         '<td><input class="procedencia-input" type="text" data-proc="'+u.id+'" value="'+(u.procedencia||'')+'" placeholder="-"></td>'+
-        '<td><span class="badge '+tipoClass(u.tipo)+'">'+u.tipo+'</span></td>'+
+        '<td><select class="tipo-select '+tipoClass(u.tipo)+'" data-tipo="'+u.id+'">'+
+          '<option value="Recepcion"'+(u.tipo==='Recepcion'?' selected':'')+'>Recepcion</option>'+
+          '<option value="Despacho"'+(u.tipo==='Despacho'?' selected':'')+'>Despacho</option>'+
+          '<option value="Traslado"'+(u.tipo==='Traslado'?' selected':'')+'>Traslado</option>'+
+          '<option value="Rece/Desp"'+(u.tipo==='Rece/Desp'?' selected':'')+'>Rece/Desp</option>'+
+        '</select></td>'+
         '<td><input class="hora-input" type="time" data-hora="'+u.id+'" value="'+(u.hora||'')+'"></td>'+
         '<td><div style="display:flex; align-items:center; gap:3px;"><select class="estatus-select '+estatusClass(u.estatus)+'" data-estatus="'+u.id+'">'+
           '<option value="Pendiente"'+(u.estatus==='Pendiente'?' selected':'')+'>Pendiente</option>'+
@@ -812,6 +818,14 @@ var MINUTOS_SESION = 60;
       inp.addEventListener('change', function(){
         var id = inp.getAttribute('data-hora');
         dbRef.child(id).update({ hora: inp.value }).catch(function(e){ console.error('error actualizando hora', e); });
+      });
+    });
+    listEl.querySelectorAll('[data-tipo]').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var id = sel.getAttribute('data-tipo');
+        var nuevoTipo = sel.value;
+        sel.className = 'tipo-select ' + tipoClass(nuevoTipo);
+        dbRef.child(id).update({ tipo: nuevoTipo }).catch(function(e){ console.error('error actualizando tipo', e); });
       });
     });
     listEl.querySelectorAll('[data-ntrans]').forEach(function(inp){
