@@ -250,8 +250,8 @@
   <p class="section-label">Por estatus</p>
   <div class="metrics-row metrics-estatus" id="metricsEstatus"></div>
 
-  <p class="section-label">Por tipo</p>
-  <div class="metrics-row" id="metricsTipo"></div>
+  <p class="section-label no-export">Por tipo</p>
+  <div class="metrics-row no-export" id="metricsTipo"></div>
 
   <p class="section-label no-export">Leadtime promedio por tipo (unidades atendidas/despachadas)</p>
   <div class="metrics-row no-export" id="metricsLeadtime"></div>
@@ -1212,16 +1212,72 @@ var MINUTOS_SESION = 60;
     var workbook = new ExcelJS.Workbook();
     var sheet = workbook.addWorksheet('Status CD OQUENDO');
 
+    // ── TITULO ───────────────────────────────────────────────────────────────
     sheet.mergeCells('A1:I1');
     var titleCell = sheet.getCell('A1');
     titleCell.value = 'Status CD OQUENDO - ' + new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
     titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A18' } };
-    sheet.getRow(1).height = 22;
-
+    sheet.getRow(1).height = 26;
     sheet.addRow([]);
 
+    // ── RESUMEN POR ESTATUS (inline, 2 filas x 4 grupos de 2 columnas) ────────
+    var xlEc = {};
+    data.forEach(function(u){ xlEc[u.estatus] = (xlEc[u.estatus]||0)+1; });
+
+    var ESTATUS_XL = [
+      { label:'Total',                     fill:'FF1A1A18', font:'FFFFFFFF', val: data.length },
+      { label:'Pendiente',                 fill:'FFC00000', font:'FFFFFFFF', key:'Pendiente' },
+      { label:'En Proceso de Atencion',    fill:'FFFFD7D7', font:'FF7B2020', key:'En Proceso de atencion' },
+      { label:'Cargado pendiente factura', fill:'FFF59B27', font:'FFFFFFFF', key:'Cargado pendiente factura' },
+      { label:'Cargado y Facturado',       fill:'FFE2EFDA', font:'FF375623', key:'Cargado y Facturado' },
+      { label:'Atendido',                  fill:'FF1E7145', font:'FFFFFFFF', key:'Atendido' },
+      { label:'No se encuentra en CD',     fill:'FFF2F2F2', font:'FF404040', key:'No se encuentra en CD' },
+      { label:'Pernoctando',               fill:'FF00B0F0', font:'FF1A3A4A', key:'Pernoctando' },
+    ];
+
+    function xlCardCell(cell, label, val, fill, font){
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: fill } };
+      cell.font = { bold: true, color:{ argb: font }, name:'Calibri' };
+      cell.alignment = { horizontal:'center', vertical:'middle', wrapText: true };
+      cell.border = { top:{style:'thin',color:{argb:'FFD8D6CC'}}, bottom:{style:'thin',color:{argb:'FFD8D6CC'}}, left:{style:'thin',color:{argb:'FFD8D6CC'}}, right:{style:'thin',color:{argb:'FFD8D6CC'}} };
+      cell.value = label;
+    }
+    function xlNumCell(cell, val, fill, font){
+      cell.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: fill } };
+      cell.font = { bold: true, size: 16, color:{ argb: font }, name:'Calibri' };
+      cell.alignment = { horizontal:'center', vertical:'middle' };
+      cell.border = { top:{style:'thin',color:{argb:'FFD8D6CC'}}, bottom:{style:'thin',color:{argb:'FFD8D6CC'}}, left:{style:'thin',color:{argb:'FFD8D6CC'}}, right:{style:'thin',color:{argb:'FFD8D6CC'}} };
+      cell.value = val;
+    }
+
+    // Fila 3: primeros 4 estatus
+    var row3 = sheet.getRow(3);
+    row3.height = 32;
+    [0,1,2,3].forEach(function(i){
+      var s = ESTATUS_XL[i];
+      var val = s.val !== undefined ? s.val : (xlEc[s.key]||0);
+      var colLabel = i*2 + 1;
+      xlCardCell(row3.getCell(colLabel), s.label, val, s.fill, s.font);
+      xlNumCell(row3.getCell(colLabel+1), val, s.fill, s.font);
+    });
+
+    // Fila 4: ultimos 4 estatus
+    var row4 = sheet.getRow(4);
+    row4.height = 32;
+    [4,5,6,7].forEach(function(i){
+      var s = ESTATUS_XL[i];
+      var val = s.val !== undefined ? s.val : (xlEc[s.key]||0);
+      var colLabel = (i-4)*2 + 1;
+      xlCardCell(row4.getCell(colLabel), s.label, val, s.fill, s.font);
+      xlNumCell(row4.getCell(colLabel+1), val, s.fill, s.font);
+    });
+
+    sheet.addRow([]);
+    sheet.getRow(5).height = 6;
+
+    // ── ENCABEZADOS Y DATOS ───────────────────────────────────────────────────
     var headerRow = sheet.addRow(['Prioridad', 'Placa', 'N° Transporte', 'Procedencia', 'Tipo', 'Hora de llegada', 'Estatus', 'Tiempo', 'Estado']);
     headerRow.eachCell(function(cell){
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -1259,12 +1315,12 @@ var MINUTOS_SESION = 60;
     });
 
     sheet.getColumn(1).width = 11;
-    sheet.getColumn(2).width = 14;
+    sheet.getColumn(2).width = 11;
     sheet.getColumn(3).width = 14;
     sheet.getColumn(4).width = 16;
     sheet.getColumn(5).width = 14;
     sheet.getColumn(6).width = 13;
-    sheet.getColumn(7).width = 18;
+    sheet.getColumn(7).width = 22;
     sheet.getColumn(8).width = 10;
     sheet.getColumn(9).width = 10;
 
@@ -1326,12 +1382,44 @@ var MINUTOS_SESION = 60;
       '</tr>';
     }).join('');
 
+    // Calcular conteos por estatus
+    var waEc = {};
+    var waTc = {};
+    data.forEach(function(u){
+      waEc[u.estatus] = (waEc[u.estatus]||0)+1;
+      waTc[u.tipo]    = (waTc[u.tipo]||0)+1;
+    });
+
+    var WA_ESTATUS = [
+      {key:'total',                    label:'Total',          bg:'#1A1A18', fg:'#FFFFFF', val: data.length},
+      {key:'Pendiente',                label:'Pendiente',      bg:'#C00000', fg:'#FFFFFF'},
+      {key:'En Proceso de atencion',   label:'En Proceso',     bg:'#FFD7D7', fg:'#7B2020'},
+      {key:'Cargado pendiente factura',label:'Pend.Factura',   bg:'#F59B27', fg:'#FFFFFF'},
+      {key:'Cargado y Facturado',      label:'Cargado/Fact.',  bg:'#E2EFDA', fg:'#375623'},
+      {key:'Atendido',                 label:'Atendido',       bg:'#1E7145', fg:'#FFFFFF'},
+      {key:'No se encuentra en CD',    label:'No en CD',       bg:'#F2F2F2', fg:'#404040'},
+      {key:'Pernoctando',              label:'Pernoctando',    bg:'#00B0F0', fg:'#1A3A4A'},
+    ];
+
+    var tarjetasHtml = WA_ESTATUS.map(function(s){
+      var count = s.key === 'total' ? s.val : (waEc[s.key]||0);
+      return '<div style="flex:1; min-width:70px; max-width:100px; background:'+s.bg+'; border-radius:6px; padding:6px 3px; text-align:center; margin:2px;">'+
+        '<p style="margin:0 0 2px; font-size:8.5px; color:'+s.fg+'; opacity:0.9; text-transform:uppercase; letter-spacing:0.2px; line-height:1.2;">'+s.label+'</p>'+
+        '<p style="margin:0; font-size:16px; font-weight:700; color:'+s.fg+';">'+count+'</p>'+
+      '</div>';
+    }).join('');
+
     var html =
-      '<div style="background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.12); width:720px;">'+
-        '<div style="background:#1A1A18; padding:12px 16px; text-align:center;">'+
+      '<div style="background:#F4F3EF; padding:12px; border-radius:10px; width:720px;">'+
+        '<div style="background:#1A1A18; padding:12px 16px; text-align:center; border-radius:8px 8px 0 0;">'+
           '<p style="margin:0; color:#fff; font-weight:700; font-size:14px; letter-spacing:0.3px;">Status CD OQUENDO</p>'+
           '<p style="margin:4px 0 0; color:#AAAAAA; font-size:11px;">'+fechaTitulo+' &nbsp;|&nbsp; '+horaActual+'</p>'+
         '</div>'+
+        '<div style="background:#fff; border-radius:0 0 8px 8px; padding:10px 8px 6px;">'+
+          '<p style="margin:0 0 6px; font-size:10px; text-transform:uppercase; letter-spacing:0.4px; color:#8A8880; font-weight:600;">Por Estatus</p>'+
+          '<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;">'+tarjetasHtml+'</div>'+
+        '</div>'+
+        '<div style="background:#fff; border-radius:8px; margin-top:8px; overflow:hidden;">'+
         '<table style="width:100%; border-collapse:collapse;">'+
           '<thead>'+
             '<tr style="background:#EDEBE3;">'+
@@ -1346,6 +1434,7 @@ var MINUTOS_SESION = 60;
           '</thead>'+
           '<tbody>'+filas+'</tbody>'+
         '</table>'+
+        '</div>'+
       '</div>';
 
     return html;
