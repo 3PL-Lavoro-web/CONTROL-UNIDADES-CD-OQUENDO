@@ -247,11 +247,11 @@
     <button class="btn-export" id="btnCerrarDia" style="background:#0C447C; border-color:#0C447C;">Cerrar dia (guardar historico)</button>
   </div>
 
+  <p class="section-label">Por tipo</p>
+  <div class="metrics-row" id="metricsTipo"></div>
+
   <p class="section-label">Por estatus</p>
   <div class="metrics-row metrics-estatus" id="metricsEstatus"></div>
-
-  <p class="section-label no-export">Por tipo</p>
-  <div class="metrics-row no-export" id="metricsTipo"></div>
 
   <p class="section-label no-export">Leadtime promedio por tipo (unidades atendidas/despachadas)</p>
   <div class="metrics-row no-export" id="metricsLeadtime"></div>
@@ -1222,9 +1222,20 @@ var MINUTOS_SESION = 60;
     sheet.getRow(1).height = 26;
     sheet.addRow([]);
 
-    // ── RESUMEN POR ESTATUS (inline, 2 filas x 4 grupos de 2 columnas) ────────
+    // ── RESUMEN POR TIPO (fila 3) + POR ESTATUS (filas 4-5) ──────────────────
     var xlEc = {};
-    data.forEach(function(u){ xlEc[u.estatus] = (xlEc[u.estatus]||0)+1; });
+    var xlTc = {};
+    data.forEach(function(u){
+      xlEc[u.estatus] = (xlEc[u.estatus]||0)+1;
+      xlTc[u.tipo]    = (xlTc[u.tipo]||0)+1;
+    });
+
+    var TIPOS_XL = [
+      { label:'Recepcion', fill:'FFE6F1FB', font:'FF0C447C', key:'Recepcion' },
+      { label:'Despacho',  fill:'FFEAF3DE', font:'FF27500A', key:'Despacho' },
+      { label:'Traslado',  fill:'FFFAEEDA', font:'FF633806', key:'Traslado' },
+      { label:'Rece/Desp', fill:'FFEEEDFE', font:'FF3C3489', key:'Rece/Desp' },
+    ];
 
     var ESTATUS_XL = [
       { label:'Total',                     fill:'FF1A1A18', font:'FFFFFFFF', val: data.length },
@@ -1252,30 +1263,43 @@ var MINUTOS_SESION = 60;
       cell.value = val;
     }
 
-    // Fila 3: primeros 4 estatus
-    var row3 = sheet.getRow(3);
-    row3.height = 32;
+    // Fila 3: POR TIPO (4 tipos)
+    var rowTipo = sheet.getRow(3);
+    rowTipo.height = 32;
+    TIPOS_XL.forEach(function(t, i){
+      var val = xlTc[t.key] || 0;
+      var colLabel = i*2 + 1;
+      xlCardCell(rowTipo.getCell(colLabel), t.label, val, t.fill, t.font);
+      xlNumCell(rowTipo.getCell(colLabel+1), val, t.fill, t.font);
+    });
+
+    // Fila 4: separadora
+    sheet.getRow(4).height = 8;
+
+    // Fila 5: primeros 4 estatus
+    var row5a = sheet.getRow(5);
+    row5a.height = 32;
     [0,1,2,3].forEach(function(i){
       var s = ESTATUS_XL[i];
       var val = s.val !== undefined ? s.val : (xlEc[s.key]||0);
       var colLabel = i*2 + 1;
-      xlCardCell(row3.getCell(colLabel), s.label, val, s.fill, s.font);
-      xlNumCell(row3.getCell(colLabel+1), val, s.fill, s.font);
+      xlCardCell(row5a.getCell(colLabel), s.label, val, s.fill, s.font);
+      xlNumCell(row5a.getCell(colLabel+1), val, s.fill, s.font);
     });
 
-    // Fila 4: ultimos 4 estatus
-    var row4 = sheet.getRow(4);
-    row4.height = 32;
+    // Fila 6: ultimos 4 estatus
+    var row6a = sheet.getRow(6);
+    row6a.height = 32;
     [4,5,6,7].forEach(function(i){
       var s = ESTATUS_XL[i];
       var val = s.val !== undefined ? s.val : (xlEc[s.key]||0);
       var colLabel = (i-4)*2 + 1;
-      xlCardCell(row4.getCell(colLabel), s.label, val, s.fill, s.font);
-      xlNumCell(row4.getCell(colLabel+1), val, s.fill, s.font);
+      xlCardCell(row6a.getCell(colLabel), s.label, val, s.fill, s.font);
+      xlNumCell(row6a.getCell(colLabel+1), val, s.fill, s.font);
     });
 
     sheet.addRow([]);
-    sheet.getRow(5).height = 6;
+    sheet.getRow(7).height = 6;
 
     // ── ENCABEZADOS Y DATOS ───────────────────────────────────────────────────
     var headerRow = sheet.addRow(['Prioridad', 'Placa', 'N° Transporte', 'Procedencia', 'Tipo', 'Hora de llegada', 'Estatus', 'Tiempo', 'Estado']);
@@ -1390,6 +1414,13 @@ var MINUTOS_SESION = 60;
       waTc[u.tipo]    = (waTc[u.tipo]||0)+1;
     });
 
+    var WA_TIPOS = [
+      {key:'Recepcion', label:'Recepcion', bg:'#E6F1FB', fg:'#0C447C'},
+      {key:'Despacho',  label:'Despacho',  bg:'#EAF3DE', fg:'#27500A'},
+      {key:'Traslado',  label:'Traslado',  bg:'#FAEEDA', fg:'#633806'},
+      {key:'Rece/Desp', label:'Rece/Desp', bg:'#EEEDFE', fg:'#3C3489'},
+    ];
+
     var WA_ESTATUS = [
       {key:'total',                    label:'Total',          bg:'#1A1A18', fg:'#FFFFFF', val: data.length},
       {key:'Pendiente',                label:'Pendiente',      bg:'#C00000', fg:'#FFFFFF'},
@@ -1401,12 +1432,20 @@ var MINUTOS_SESION = 60;
       {key:'Pernoctando',              label:'Pernoctando',    bg:'#00B0F0', fg:'#1A3A4A'},
     ];
 
-    var tarjetasHtml = WA_ESTATUS.map(function(s){
-      var count = s.key === 'total' ? s.val : (waEc[s.key]||0);
+    function waCard(s, count){
       return '<div style="flex:1; min-width:70px; max-width:100px; background:'+s.bg+'; border-radius:6px; padding:6px 3px; text-align:center; margin:2px;">'+
         '<p style="margin:0 0 2px; font-size:8.5px; color:'+s.fg+'; opacity:0.9; text-transform:uppercase; letter-spacing:0.2px; line-height:1.2;">'+s.label+'</p>'+
         '<p style="margin:0; font-size:16px; font-weight:700; color:'+s.fg+';">'+count+'</p>'+
       '</div>';
+    }
+
+    var tarjetasTipoHtml = WA_TIPOS.map(function(t){
+      return waCard(t, waTc[t.key]||0);
+    }).join('');
+
+    var tarjetasHtml = WA_ESTATUS.map(function(s){
+      var count = s.key === 'total' ? s.val : (waEc[s.key]||0);
+      return waCard(s, count);
     }).join('');
 
     var html =
@@ -1416,6 +1455,8 @@ var MINUTOS_SESION = 60;
           '<p style="margin:4px 0 0; color:#AAAAAA; font-size:11px;">'+fechaTitulo+' &nbsp;|&nbsp; '+horaActual+'</p>'+
         '</div>'+
         '<div style="background:#fff; border-radius:0 0 8px 8px; padding:10px 8px 6px;">'+
+          '<p style="margin:0 0 6px; font-size:10px; text-transform:uppercase; letter-spacing:0.4px; color:#8A8880; font-weight:600;">Por Tipo</p>'+
+          '<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;">'+tarjetasTipoHtml+'</div>'+
           '<p style="margin:0 0 6px; font-size:10px; text-transform:uppercase; letter-spacing:0.4px; color:#8A8880; font-weight:600;">Por Estatus</p>'+
           '<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px;">'+tarjetasHtml+'</div>'+
         '</div>'+
