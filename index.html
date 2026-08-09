@@ -109,6 +109,7 @@
   table.unit-table tr:first-child td { border-top: none; }
   table.unit-table tr:nth-child(even) { background: #FAFAF8; }
   .placa { font-weight: 600; font-size: 12.5px; letter-spacing: 0.3px; }
+  input.placa-input { font-weight: 600; font-size: 12px; letter-spacing: 0.3px; padding: 3px 4px; width: 82px; border-radius: 6px; border: 1px solid #D8D6CC; background: #fff; font-family: inherit; color: #1A1A18; text-transform: uppercase; }
   .badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 600; display: inline-block; white-space: nowrap; }
   select.tipo-select { font-size: 11px; padding: 2px 4px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; }
   .tipo-select.b-recepcion { background: #E6F1FB; color: #0C447C; }
@@ -766,7 +767,7 @@ var MINUTOS_SESION = 60;
           '<button data-up="'+u.id+'" aria-label="Subir prioridad" '+(isFirst?'disabled':'')+'>&#9650;</button>'+
           '<button data-down="'+u.id+'" aria-label="Bajar prioridad" '+(isLast?'disabled':'')+'>&#9660;</button>'+
         '</div></td>'+
-        '<td class="placa">'+u.placa+'</td>'+
+        '<td><input class="placa-input" type="text" data-placa="'+u.id+'" value="'+(u.placa||'')+'" placeholder="PLACA"></td>'+
         '<td><input class="ntrans-input" type="text" data-ntrans="'+u.id+'" value="'+(u.ntransporte||'')+'" placeholder="-"></td>'+
         '<td><input class="procedencia-input" type="text" data-proc="'+u.id+'" value="'+(u.procedencia||'')+'" placeholder="-"></td>'+
         '<td><select class="tipo-select '+tipoClass(u.tipo)+'" data-tipo="'+u.id+'">'+
@@ -818,6 +819,19 @@ var MINUTOS_SESION = 60;
       inp.addEventListener('change', function(){
         var id = inp.getAttribute('data-hora');
         dbRef.child(id).update({ hora: inp.value }).catch(function(e){ console.error('error actualizando hora', e); });
+      });
+    });
+    listEl.querySelectorAll('[data-placa]').forEach(function(inp){
+      inp.addEventListener('change', function(){
+        var id = inp.getAttribute('data-placa');
+        var nuevaPlaca = inp.value.trim().toUpperCase();
+        if(!nuevaPlaca){
+          var u = data.find(function(x){ return x.id === id; });
+          inp.value = u ? u.placa : '';
+          showToast('La placa no puede quedar vacia');
+          return;
+        }
+        dbRef.child(id).update({ placa: nuevaPlaca }).catch(function(e){ console.error('error actualizando placa', e); });
       });
     });
     listEl.querySelectorAll('[data-tipo]').forEach(function(sel){
