@@ -125,6 +125,11 @@
   .s-noencd { background: #F2F2F2; color: #404040; border-color: #BDBDBD; }
   .s-pernoctando { background: #00B0F0; color: #1A3A4A; border-color: #0090C8; }
   input.hora-input { font-size: 11px; padding: 3px 2px; width: 74px; border-radius: 6px; }
+  .drag-handle { cursor: grab; font-size: 15px; color: #B5B2A6; padding: 2px 3px; user-select: none; line-height: 1; }
+  .drag-handle:active { cursor: grabbing; color: #1A1A18; }
+  tr.drag-over-top td { border-top: 2px solid #0C447C !important; }
+  tr.drag-over-bottom td { border-bottom: 2px solid #0C447C !important; }
+  tr.dragging { opacity: 0.4; }
   input.procedencia-input { font-size: 11px; padding: 3px 4px; width: 80px; border-radius: 6px; border: 1px solid #D8D6CC; background: #fff; font-family: inherit; color: #5A5A5A; text-transform: uppercase; }
   input.ntrans-input { font-size: 11px; padding: 3px 4px; width: 72px; border-radius: 6px; border: 1px solid #D8D6CC; background: #fff; font-family: inherit; color: #1A1A18; text-transform: uppercase; }
   .del-btn { border: none; background: none; padding: 1px; font-size: 13px; color: #B0AEA5; cursor: pointer; }
@@ -181,6 +186,11 @@
     align-items:center; justify-content:center; z-index:10000; padding:16px;
   }
   #sessionWarning.active { display:flex; }
+  #reportReminder {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    align-items:center; justify-content:center; z-index:9998; padding:16px;
+  }
+  #reportReminder.active { display:flex; }
   .session-card {
     background:#fff; border-radius:14px; padding:24px 20px; max-width:300px;
     width:100%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.2);
@@ -202,6 +212,16 @@
     <div class="countdown" id="sessionCountdown">60</div>
     <button class="btn-extend" id="btnExtendSession">Seguir conectado</button>
     <button class="btn-logout-now" id="btnLogoutNow">Cerrar sesión ahora</button>
+  </div>
+</div>
+
+<!-- RECORDATORIO ENVIO DE REPORTE -->
+<div id="reportReminder">
+  <div class="session-card">
+    <h3 style="color:#0C447C;">🔔 Recordatorio de reporte</h3>
+    <p>Faltan <strong>10 minutos</strong> para el envío del reporte de las <strong><span id="reminderHora">--:00</span></strong>.</p>
+    <p style="font-size:12px; color:#8A8880;">Actualiza los estatus y prepara el envío por WhatsApp.</p>
+    <button class="btn-extend" id="btnReminderOk">Entendido</button>
   </div>
 </div>
 
@@ -614,6 +634,47 @@ var MINUTOS_SESION = 60;
   setInterval(actualizarFechaHora, 30000);
   setInterval(function(){ render(); }, 60000);
 
+  // ── RECORDATORIO DE ENVIO DE REPORTE ──────────────────────────────────────
+  // Suena al minuto 50 de cada hora (10 min antes del envio en punto)
+  var RECORDATORIO_ACTIVO = true;
+  var MINUTO_RECORDATORIO = 50;
+  var ultimaHoraAvisada = -1;
+
+  function sonarAlerta(){
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.3, 0.6].forEach(function(delay){
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.25, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.25);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.25);
+      });
+    } catch(e) { /* audio no disponible */ }
+    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+
+  function chequearRecordatorio(){
+    if(!RECORDATORIO_ACTIVO) return;
+    if(!sessionStorage.getItem('cdoq_auth')) return; // solo con sesion activa
+    var ahora = new Date();
+    if(ahora.getMinutes() === MINUTO_RECORDATORIO && ultimaHoraAvisada !== ahora.getHours()){
+      ultimaHoraAvisada = ahora.getHours();
+      var horaEnvio = (ahora.getHours() + 1) % 24;
+      document.getElementById('reminderHora').textContent = String(horaEnvio).padStart(2,'0') + ':00';
+      document.getElementById('reportReminder').classList.add('active');
+      sonarAlerta();
+    }
+  }
+  setInterval(chequearRecordatorio, 20000);
+  document.getElementById('btnReminderOk').addEventListener('click', function(){
+    document.getElementById('reportReminder').classList.remove('active');
+  });
+  // ── FIN RECORDATORIO ──────────────────────────────────────────────────────
+
   var connectedRef = firebase.database().ref('.info/connected');
   var presenceRef = firebase.database().ref('presencia');
   connectedRef.on('value', function(snap){
@@ -762,11 +823,13 @@ var MINUTOS_SESION = 60;
       var globalIdx = data.indexOf(u);
       var isFirst = globalIdx === 0;
       var isLast = globalIdx === data.length - 1;
-      return '<tr>'+
-        '<td><div class="order-btns">'+
+      return '<tr data-rowid="'+u.id+'">'+
+        '<td><div style="display:flex; align-items:center; gap:2px;">'+
+        '<span class="drag-handle" draggable="true" data-drag="'+u.id+'" title="Arrastrar para mover">&#10495;</span>'+
+        '<div class="order-btns">'+
           '<button data-up="'+u.id+'" aria-label="Subir prioridad" '+(isFirst?'disabled':'')+'>&#9650;</button>'+
           '<button data-down="'+u.id+'" aria-label="Bajar prioridad" '+(isLast?'disabled':'')+'>&#9660;</button>'+
-        '</div></td>'+
+        '</div></div></td>'+
         '<td><input class="placa-input" type="text" data-placa="'+u.id+'" value="'+(u.placa||'')+'" placeholder="PLACA"></td>'+
         '<td><input class="ntrans-input" type="text" data-ntrans="'+u.id+'" value="'+(u.ntransporte||'')+'" placeholder="-"></td>'+
         '<td><input class="procedencia-input" type="text" data-proc="'+u.id+'" value="'+(u.procedencia||'')+'" placeholder="-"></td>'+
@@ -800,12 +863,12 @@ var MINUTOS_SESION = 60;
       });
     });
     listEl.querySelectorAll('[data-estatus]').forEach(function(sel){
-      sel.className = sel.className.replace(/s-\S+/g, '').trim();
       sel.addEventListener('change', function(){
         var id = sel.getAttribute('data-estatus');
         var u = data.find(function(x){ return x.id === id; });
         if(!u) return;
         var nuevoEstatus = sel.value;
+        sel.className = 'estatus-select ' + estatusClass(nuevoEstatus);
         var patch = { estatus: nuevoEstatus };
         if(esFinal(nuevoEstatus)){
           patch.tsFin = u.tsFin || Date.now();
@@ -878,6 +941,66 @@ var MINUTOS_SESION = 60;
         dbRef.child(id).update(patch).catch(function(e){ console.error('error avanzando estatus', e); });
       });
     });
+
+    // ── DRAG & DROP de filas con el mouse ──────────────────────────────────
+    var dragId = null;
+
+    listEl.querySelectorAll('.drag-handle').forEach(function(handle){
+      handle.addEventListener('dragstart', function(e){
+        dragId = handle.getAttribute('data-drag');
+        var tr = handle.closest('tr');
+        if(tr) tr.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', dragId); } catch(err){}
+      });
+      handle.addEventListener('dragend', function(){
+        dragId = null;
+        listEl.querySelectorAll('tr').forEach(function(t){
+          t.classList.remove('dragging','drag-over-top','drag-over-bottom');
+        });
+      });
+    });
+
+    listEl.querySelectorAll('tr[data-rowid]').forEach(function(tr){
+      tr.addEventListener('dragover', function(e){
+        if(!dragId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var rect = tr.getBoundingClientRect();
+        var arriba = (e.clientY - rect.top) < rect.height / 2;
+        tr.classList.toggle('drag-over-top', arriba);
+        tr.classList.toggle('drag-over-bottom', !arriba);
+      });
+      tr.addEventListener('dragleave', function(){
+        tr.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      tr.addEventListener('drop', function(e){
+        e.preventDefault();
+        var targetId = tr.getAttribute('data-rowid');
+        tr.classList.remove('drag-over-top','drag-over-bottom');
+        if(!dragId || dragId === targetId) return;
+
+        var rect = tr.getBoundingClientRect();
+        var insertarAntes = (e.clientY - rect.top) < rect.height / 2;
+
+        var lista = data.slice();
+        var fromIdx = lista.findIndex(function(x){ return x.id === dragId; });
+        var toIdx = lista.findIndex(function(x){ return x.id === targetId; });
+        if(fromIdx === -1 || toIdx === -1) return;
+
+        var movida = lista.splice(fromIdx, 1)[0];
+        var toIdx2 = lista.findIndex(function(x){ return x.id === targetId; });
+        var destino = insertarAntes ? toIdx2 : toIdx2 + 1;
+        lista.splice(destino, 0, movida);
+
+        var patch = {};
+        lista.forEach(function(u2, idx2){
+          patch[u2.id + '/orden'] = idx2;
+        });
+        dbRef.update(patch).catch(function(e2){ console.error('error reordenando', e2); });
+      });
+    });
+    // ── FIN DRAG & DROP ─────────────────────────────────────────────────────
   }
 
   function moveUnit(id, dir){
