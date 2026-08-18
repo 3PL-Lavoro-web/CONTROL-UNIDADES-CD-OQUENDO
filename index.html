@@ -398,11 +398,23 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
 
   <div class="modal" id="modalConfirmCerrar" style="display:none;">
     <h2>Cerrar dia</h2>
-    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Esto guarda una copia de todas las unidades de hoy en el historico (Firebase y Google Sheets si esta conectado). La vista en vivo no se borra, puedes seguir trabajando o usar "Borrar todo" despues para empezar el dia siguiente. ¿Continuar?</p>
+    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Solo se guardan en el historico las unidades con estatus <strong>Atendido</strong> (Firebase y Google Sheets). La vista en vivo no se borra. ¿Continuar?</p>
+    <p class="hint" id="resumenAtendidos" style="font-size:12.5px; color:#1E7145; background:#E2EFDA; border-radius:8px; padding:8px 10px; margin-top:8px;"></p>
+    <p class="hint" id="resumenPendientes" style="display:none; font-size:12.5px; color:#A35A00; background:#FDF1DD; border-radius:8px; padding:8px 10px; margin-top:8px;"></p>
     <p class="hint" id="warnYaCerrado" style="display:none; font-size:12.5px; color:#A32D2D; background:#FCEBEB; border-radius:8px; padding:8px 10px; margin-top:8px;">⚠ El dia de hoy ya fue cerrado antes. Si confirmas, se va a sobrescribir el historico de Firebase con la lista actual, y se van a agregar filas duplicadas en Google Sheets (no se borran las anteriores).</p>
     <div class="modal-actions">
       <button id="btnCancelCerrar">Cancelar</button>
       <button class="btn-primary" id="btnConfirmCerrar" style="background:#0C447C; border-color:#0C447C;">Guardar historico</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalConfirmDelete" style="display:none;">
+    <h2>Eliminar unidad</h2>
+    <p class="hint" style="font-size:12.5px; color:#1A1A18;">La unidad <strong id="deletePlaca">-</strong> tiene estatus <strong id="deleteEstatus">-</strong>.</p>
+    <p class="hint" style="font-size:12.5px; color:#A32D2D; background:#FCEBEB; border-radius:8px; padding:8px 10px; margin-top:8px;">⚠ Esta unidad NO esta guardada en el historico (solo se guardan las Atendidas al cerrar el dia). Si la eliminas, su informacion se perdera definitivamente.</p>
+    <div class="modal-actions">
+      <button id="btnCancelDelete">Cancelar</button>
+      <button class="btn-primary" id="btnConfirmDelete" style="background:#A32D2D; border-color:#A32D2D;">Eliminar de todos modos</button>
     </div>
   </div>
 
@@ -571,12 +583,15 @@ var MINUTOS_SESION = 60;
   }
 
   function cerrarDia(){
-    if(!data.length){
-      showToast('No hay unidades para guardar en el historico');
+    var atendidas = data.filter(function(u){ return u.estatus === 'Atendido'; });
+    var pendientes = data.filter(function(u){ return u.estatus !== 'Atendido'; });
+
+    if(!atendidas.length){
+      showToast('No hay unidades Atendidas para guardar en el historico');
       return;
     }
     var fecha = fechaHoyISO();
-    var snapshot = data.map(function(u){
+    var snapshot = atendidas.map(function(u){
       var inicio = parseHoraHoy(u.hora);
       var tiempoTexto = '-';
       if(inicio){
@@ -595,7 +610,7 @@ var MINUTOS_SESION = 60;
     });
 
     historicoRef.child(fecha).set(snapshot).then(function(){
-      showToast('Historico guardado en Firebase (' + fecha + ')');
+      showToast('Historico guardado: ' + atendidas.length + ' Atendida(s)' + (pendientes.length ? ' | ' + pendientes.length + ' pendiente(s) NO enviada(s)' : ''));
     }).catch(function(e){
       console.error('error guardando historico', e);
       showToast('Error al guardar historico en Firebase');
@@ -607,7 +622,7 @@ var MINUTOS_SESION = 60;
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ fecha: fecha, registros: snapshot })
       }).then(function(){
-        showToast('Enviado a Google Sheets');
+        showToast('Enviado a Google Sheets (' + atendidas.length + ' Atendidas)');
       }).catch(function(e){
         console.error('error enviando a sheets', e);
         showToast('No se pudo enviar a Google Sheets');
@@ -859,6 +874,15 @@ var MINUTOS_SESION = 60;
     listEl.querySelectorAll('[data-del]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var id = btn.getAttribute('data-del');
+        var u = data.find(function(x){ return x.id === id; });
+        if(u && u.estatus !== 'Atendido'){
+          // No esta en el historico: pedir confirmacion con advertencia
+          pendingDeleteId = id;
+          document.getElementById('deletePlaca').textContent = u.placa || '-';
+          document.getElementById('deleteEstatus').textContent = u.estatus || '-';
+          openModal('delete');
+          return;
+        }
         dbRef.child(id).remove().catch(function(e){ console.error('error eliminando', e); });
       });
     });
@@ -1072,6 +1096,7 @@ var MINUTOS_SESION = 60;
     document.getElementById('modalBulk').style.display = which==='bulk' ? 'block' : 'none';
     document.getElementById('modalConfirmClear').style.display = which==='clear' ? 'block' : 'none';
     document.getElementById('modalConfirmCerrar').style.display = which==='cerrar' ? 'block' : 'none';
+    document.getElementById('modalConfirmDelete').style.display = which==='delete' ? 'block' : 'none';
   }
   function closeModal(){ document.getElementById('modalOverlay').style.display = 'none'; }
 
@@ -1096,6 +1121,22 @@ var MINUTOS_SESION = 60;
   document.getElementById('btnCerrarDia').addEventListener('click', function(){
     var warnEl = document.getElementById('warnYaCerrado');
     warnEl.style.display = 'none';
+
+    var atendidas = data.filter(function(u){ return u.estatus === 'Atendido'; });
+    var pendientes = data.filter(function(u){ return u.estatus !== 'Atendido'; });
+
+    var resAt = document.getElementById('resumenAtendidos');
+    resAt.innerHTML = '&#10003; Se guardaran <strong>' + atendidas.length + '</strong> unidad(es) con estatus Atendido.';
+
+    var resPen = document.getElementById('resumenPendientes');
+    if(pendientes.length){
+      var placasPen = pendientes.map(function(u){ return u.placa; }).join(', ');
+      resPen.innerHTML = '&#9888; <strong>' + pendientes.length + '</strong> unidad(es) NO se guardaran por estar pendientes de atencion: <strong>' + placasPen + '</strong>. Quedaran en la vista en vivo hasta ser Atendidas.';
+      resPen.style.display = 'block';
+    } else {
+      resPen.style.display = 'none';
+    }
+
     var fecha = fechaHoyISO();
     historicoRef.child(fecha).once('value', function(snap){
       if(snap.exists()){
@@ -1108,6 +1149,19 @@ var MINUTOS_SESION = 60;
     });
   });
   document.getElementById('btnCancelCerrar').addEventListener('click', closeModal);
+
+  var pendingDeleteId = null;
+  document.getElementById('btnCancelDelete').addEventListener('click', function(){
+    pendingDeleteId = null;
+    closeModal();
+  });
+  document.getElementById('btnConfirmDelete').addEventListener('click', function(){
+    if(pendingDeleteId){
+      dbRef.child(pendingDeleteId).remove().catch(function(e){ console.error('error eliminando', e); });
+      pendingDeleteId = null;
+    }
+    closeModal();
+  });
   document.getElementById('btnConfirmCerrar').addEventListener('click', function(){
     cerrarDia();
     closeModal();
