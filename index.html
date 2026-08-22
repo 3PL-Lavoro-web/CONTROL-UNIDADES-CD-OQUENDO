@@ -262,7 +262,7 @@
     <button id="btnSortHora">Ordenar por hora</button>
     <button id="btnPng">Descargar imagen</button>
     <button id="btnShareWA" style="background:#25D366; color:#fff; border-color:#1DA851;">&#128205; WhatsApp</button>
-    <button class="btn-danger" id="btnClearAll">Borrar todo</button>
+    <button class="btn-danger" id="btnClearAll">Borrar atendidas</button>
   </div>
   <div class="actions-row2 no-export">
     <button class="btn-export" id="btnCerrarDia" style="background:#0C447C; border-color:#0C447C;">Cerrar dia (guardar historico)</button>
@@ -388,11 +388,14 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
   </div>
 
   <div class="modal" id="modalConfirmClear" style="display:none;">
-    <h2>Borrar todo</h2>
-    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Esto eliminara las unidades que tengas registradas. Esta accion no se puede deshacer. ¿Continuar?</p>
+    <h2>Borrar atendidas</h2>
+    <p class="hint" style="font-size:12.5px; color:#1A1A18;">Solo se eliminaran las unidades con estatus <strong>Atendido</strong>, que ya fueron guardadas en el historico. Las demas se mantienen en la vista en vivo.</p>
+    <p class="hint" id="resumenBorrarAtendidas" style="font-size:12.5px; color:#A32D2D; background:#FCEBEB; border-radius:8px; padding:8px 10px; margin-top:8px;"></p>
+    <p class="hint" id="resumenBorrarQuedan" style="display:none; font-size:12.5px; color:#1E7145; background:#E2EFDA; border-radius:8px; padding:8px 10px; margin-top:8px;"></p>
+    <p class="hint" id="warnSinCerrarDia" style="display:none; font-size:12.5px; color:#A35A00; background:#FDF1DD; border-radius:8px; padding:8px 10px; margin-top:8px;">&#9888; Hoy aun NO se ha cerrado el dia. Si borras ahora, esas unidades no quedaran en el historico. Usa primero "Cerrar dia (guardar historico)".</p>
     <div class="modal-actions">
       <button id="btnCancelClear">Cancelar</button>
-      <button class="btn-danger" id="btnConfirmClear" style="background:#A32D2D; color:#fff; border-color:#A32D2D;">Borrar todo</button>
+      <button class="btn-danger" id="btnConfirmClear" style="background:#A32D2D; color:#fff; border-color:#A32D2D;">Borrar atendidas</button>
     </div>
   </div>
 
@@ -422,7 +425,7 @@ DEF-456,Despacho,14:30,Pendiente"></textarea>
 </div><!-- /appContent -->
 
 <div class="toast" id="toast"></div>
-<div id="captureAreaWA" style="position:fixed; left:-9999px; top:0; background:#fff; padding:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"></div>
+<div id="captureAreaWA" style="position:fixed; left:-9999px; top:0; background:#fff; padding:0; display:inline-block; width:max-content; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"></div>
 
 <script>
 // ── CREDENCIALES DE ACCESO ── Cambia estos valores para tu equipo ──────────
@@ -1116,7 +1119,30 @@ var MINUTOS_SESION = 60;
     openModal('bulk');
   });
   document.getElementById('btnClearAll').addEventListener('click', function(){
-    openModal('clear');
+    var atendidas = data.filter(function(u){ return u.estatus === 'Atendido'; });
+    var quedan    = data.filter(function(u){ return u.estatus !== 'Atendido'; });
+
+    document.getElementById('resumenBorrarAtendidas').innerHTML =
+      'Se eliminaran <strong>' + atendidas.length + '</strong> unidad(es) con estatus Atendido.';
+
+    var quedanEl = document.getElementById('resumenBorrarQuedan');
+    if(quedan.length){
+      quedanEl.innerHTML = '&#10003; Se mantendran <strong>' + quedan.length + '</strong> unidad(es) pendientes de atencion.';
+      quedanEl.style.display = 'block';
+    } else {
+      quedanEl.style.display = 'none';
+    }
+
+    var warnEl = document.getElementById('warnSinCerrarDia');
+    warnEl.style.display = 'none';
+    if(!atendidas.length){
+      showToast('No hay unidades Atendidas para borrar');
+      return;
+    }
+    historicoRef.child(fechaHoyISO()).once('value', function(snap){
+      if(!snap.exists()) warnEl.style.display = 'block';
+      openModal('clear');
+    }, function(){ openModal('clear'); });
   });
   document.getElementById('btnCerrarDia').addEventListener('click', function(){
     var warnEl = document.getElementById('warnYaCerrado');
@@ -1167,11 +1193,22 @@ var MINUTOS_SESION = 60;
     closeModal();
   });
   document.getElementById('btnConfirmClear').addEventListener('click', function(){
-    dbRef.remove().then(function(){
-      metaRef.child('seeded').set(true);
-    }).catch(function(e){ console.error('error borrando todo', e); });
+    var atendidas = data.filter(function(u){ return u.estatus === 'Atendido'; });
+    if(!atendidas.length){
+      closeModal();
+      showToast('No hay unidades Atendidas para borrar');
+      return;
+    }
+    var patch = {};
+    atendidas.forEach(function(u){ patch[u.id] = null; });
+    metaRef.child('seeded').set(true);
+    dbRef.update(patch).then(function(){
+      showToast(atendidas.length + ' unidad(es) Atendida(s) eliminada(s)');
+    }).catch(function(e){
+      console.error('error borrando atendidas', e);
+      showToast('Error al eliminar las unidades');
+    });
     closeModal();
-    showToast('Todas las unidades fueron eliminadas');
   });
   document.getElementById('btnCancelClear').addEventListener('click', closeModal);
   document.getElementById('btnCancelAdd').addEventListener('click', closeModal);
@@ -1585,7 +1622,7 @@ var MINUTOS_SESION = 60;
       return '<tr style="background:'+(idx%2===0?'#FFFFFF':'#F7F6F2')+';">'+
         '<td style="padding:6px 10px; text-align:center; font-size:12px; border-bottom:1px solid #EFEDE6;">'+(idx+1)+'</td>'+
         '<td style="padding:6px 10px; font-weight:600; font-size:12px; letter-spacing:0.3px; border-bottom:1px solid #EFEDE6;">'+u.placa+'</td>'+
-        '<td style="padding:6px 8px; font-size:11px; color:#1A1A18; border-bottom:1px solid #EFEDE6;">'+(u.ntransporte||'-')+'</td>'+
+        '<td style="padding:6px 8px; font-size:11px; color:#1A1A18; border-bottom:1px solid #EFEDE6; max-width:130px; word-break:break-word;">'+(u.ntransporte||'-')+'</td>'+
         '<td style="padding:6px 10px; font-size:11px; color:#5A5A5A; border-bottom:1px solid #EFEDE6;">'+(u.procedencia||'-')+'</td>'+
         '<td style="padding:6px 8px; border-bottom:1px solid #EFEDE6;">'+
           '<span style="background:'+tc.bg+'; color:'+tc.fg+'; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap;">'+u.tipo+'</span>'+
@@ -1640,7 +1677,7 @@ var MINUTOS_SESION = 60;
     }).join('');
 
     var html =
-      '<div style="background:#F4F3EF; padding:12px; border-radius:10px; width:720px;">'+
+      '<div style="background:#F4F3EF; padding:12px; border-radius:10px; width:max-content; min-width:720px; max-width:1000px;">'+
         '<div style="background:#1A1A18; padding:12px 16px; text-align:center; border-radius:8px 8px 0 0;">'+
           '<p style="margin:0; color:#fff; font-weight:700; font-size:14px; letter-spacing:0.3px;">Status CD OQUENDO</p>'+
           '<p style="margin:4px 0 0; color:#AAAAAA; font-size:11px;">'+fechaTitulo+' &nbsp;|&nbsp; '+horaActual+'</p>'+
@@ -1681,7 +1718,7 @@ var MINUTOS_SESION = 60;
     waArea.style.left = '-9999px';
     waArea.style.display = 'block';
 
-    html2canvas(waArea, { backgroundColor: '#FFFFFF', scale: 2, useCORS: true }).then(function(canvas){
+    html2canvas(waArea, { backgroundColor: '#FFFFFF', scale: 2, useCORS: true, width: waArea.scrollWidth, height: waArea.scrollHeight, windowWidth: waArea.scrollWidth + 100 }).then(function(canvas){
       waArea.style.display = 'none';
       canvas.toBlob(function(blob){
         var ahora = new Date();
